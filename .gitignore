@@ -11,3 +11,6 @@ mlruns/
 # Python 缓存
 __pycache__/
 *.pyc
+
+# IDE / 工具元数据
+.qoder/

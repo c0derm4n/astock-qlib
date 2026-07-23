@@ -63,7 +63,7 @@ def _normalize(df: pd.DataFrame, tag: str) -> pd.DataFrame:
     return out.sort_values("date").reset_index(drop=True)
 
 
-def fetch_one(code: str, tries: int = 5) -> pd.DataFrame | None:
+def fetch_one(code: str, tries: int = 3) -> pd.DataFrame | None:
     """抓取单只 ETF 的前复权日线，失败自动重试(网络间歇不稳)。"""
     last_err = None
     for attempt in range(tries):
@@ -80,7 +80,7 @@ def fetch_one(code: str, tries: int = 5) -> pd.DataFrame | None:
             return _normalize(df, code)
         except Exception as e:  # 连接超时等，短暂休息后重试
             last_err = e
-            time.sleep(1.0 + attempt)
+            time.sleep(0.5)
     raise last_err
 
 
