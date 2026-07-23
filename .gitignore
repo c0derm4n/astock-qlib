@@ -1,0 +1,13 @@
+# 虚拟环境
+.venv/
+
+# 生成的数据与产物（体积大，不入库）
+qlib_data/
+raw_cache/
+output/
+models/
+mlruns/
+
+# Python 缓存
+__pycache__/
+*.pyc

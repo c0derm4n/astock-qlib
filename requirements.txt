@@ -1,0 +1,11 @@
+# A股 Qlib 选股系统依赖（Python 3.10）
+# 安装：pip install -r requirements.txt
+# 建议用清华镜像：pip install -r requirements.txt -i https://pypi.tuna.tsinghua.edu.cn/simple
+
+pyqlib==0.9.7      # 微软 Qlib，AI量化框架（会自动安装 lightgbm/pandas/numpy 等）
+akshare==1.18.75   # A股行情数据源（东方财富接口）
+
+# 以下由 pyqlib 自动带入，列出以固定验证过的版本
+lightgbm==4.7.0
+pandas==2.3.3
+numpy==2.2.6
