@@ -22,6 +22,8 @@ import pandas as pd
 import config
 from src.datasource import DataStore
 from src.universe_filter import build_dynamic_universe
+import universe
+from src.utils import symbol_to_code
 
 FIELDS = ["open", "high", "low", "close", "volume", "vwap", "factor", "change"]
 
@@ -117,47 +119,62 @@ def main() -> None:
             raise SystemExit(
                 f"DuckDB 无数据，请先运行：python -m src.fetch_data。库：{config.DUCKDB_PATH}")
         print(f"读取到 {len(data)} 只 ETF（后复权）")
+        run_dump(store, data)
 
-        # 动态可交易池（Phase 5）：上市时长/流动性/规模过滤；关闭则全部可交易
-        if getattr(config, "USE_DYNAMIC_UNIVERSE", False):
-            tradable = set(build_dynamic_universe(store))
-            print(f"动态池：{len(tradable)}/{len([s for s in data if not s.startswith('BENCH')])} 只通过过滤")
-        else:
-            tradable = {s for s in data if not s.startswith("BENCH")}
 
-        # 清空旧的 features，避免残留(calendar 变化会导致下标错位)
-        feat_root = config.QLIB_DATA_DIR / "features"
-        if feat_root.exists():
-            shutil.rmtree(feat_root)
+def run_dump(store: DataStore, data: dict[str, pd.DataFrame]) -> None:
+    """把内存中的后复权日线写成 Qlib 数据（动态池 + QDII 排除 + 基准 + 溯源）。
 
-        calendar = build_calendar(data)
-        print(f"全局日历：{len(calendar)} 个交易日（{calendar[0]} ~ {calendar[-1]}）")
+    供 main()与 src.decide(盘中追加今日临时K线后重写)复用。"""
+    # 动态可交易池（Phase 5）：上市时长/流动性/规模过滤；关闭则全部可交易
+    if getattr(config, "USE_DYNAMIC_UNIVERSE", False):
+        tradable = set(build_dynamic_universe(store))
+        print(f"动态池：{len(tradable)}/{len([s for s in data if not s.startswith('BENCH')])} 只通过过滤")
+    else:
+        tradable = {s for s in data if not s.startswith("BENCH")}
 
-        # 基准实例（不可交易，供回测对标）：
-        #   BENCH    = 全ETF等权指数（衡量行业/风格轮动alpha）
-        #   BENCH300 = 沪深300（以沪深300ETF代理，衡量能否跑赢大盘）
-        data[config.EQW_BENCH_SYMBOL] = build_benchmark(data, calendar)
-        if "SH510300" in data:
-            data[config.BENCHMARK_SYMBOL] = data["SH510300"].copy()
-        else:
-            print("警告：缺少 SH510300，无法生成沪深300基准，回测需退回等权基准")
+    # 只操作非 QDII 的 ETF：QDII(纳指/恒生等)彻底剔除出可交易池(etf.txt)，
+    # 数据仍保留在 all.txt 供研究；训练/回测/每日决策都不再见到 QDII。
+    if getattr(config, "EXCLUDE_QDII", False):
+        qdii = {s for s in tradable
+                if universe.get_asset_class(symbol_to_code(s)) == "qdii"}
+        if qdii:
+            tradable -= qdii
+            print(f"排除 QDII {len(qdii)} 只(不参与交易)：{', '.join(sorted(qdii))}")
 
-        write_calendar(calendar)
-        write_instruments(data, tradable)
-        write_features(data, calendar)
+    # 清空旧的 features，避免残留(calendar 变化会导致下标错位)
+    feat_root = config.QLIB_DATA_DIR / "features"
+    if feat_root.exists():
+        shutil.rmtree(feat_root)
 
-        # 数据血缘/溯源：记录本次 dump 的数据版本与范围（Phase 3）
-        run_meta = {
-            "dumped_at": pd.Timestamp.now().strftime("%Y-%m-%d %H:%M:%S"),
-            "data_version": store.latest_run_id(),
-            "calendar_start": calendar[0],
-            "calendar_end": calendar[-1],
-            "n_instruments_all": len([s for s in data if not s.startswith("BENCH")]),
-            "n_tradable": len(tradable),
-            "tradable": sorted(tradable),
-        }
-        (config.OUTPUT_DIR / "run_meta.json").write_text(
-            json.dumps(run_meta, ensure_ascii=False, indent=2), encoding="utf-8")
+    calendar = build_calendar(data)
+    print(f"全局日历：{len(calendar)} 个交易日（{calendar[0]} ~ {calendar[-1]}）")
+
+    # 基准实例（不可交易，供回测对标）：
+    #   BENCH    = 全ETF等权指数（衡量行业/风格轮动alpha）
+    #   BENCH300 = 沪深300（以沪深300ETF代理，衡量能否跑赢大盘）
+    data[config.EQW_BENCH_SYMBOL] = build_benchmark(data, calendar)
+    if "SH510300" in data:
+        data[config.BENCHMARK_SYMBOL] = data["SH510300"].copy()
+    else:
+        print("警告：缺少 SH510300，无法生成沪深300基准，回测需退回等权基准")
+
+    write_calendar(calendar)
+    write_instruments(data, tradable)
+    write_features(data, calendar)
+
+    # 数据血缘/溯源：记录本次 dump 的数据版本与范围（Phase 3）
+    run_meta = {
+        "dumped_at": pd.Timestamp.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "data_version": store.latest_run_id(),
+        "calendar_start": calendar[0],
+        "calendar_end": calendar[-1],
+        "n_instruments_all": len([s for s in data if not s.startswith("BENCH")]),
+        "n_tradable": len(tradable),
+        "tradable": sorted(tradable),
+    }
+    (config.OUTPUT_DIR / "run_meta.json").write_text(
+        json.dumps(run_meta, ensure_ascii=False, indent=2), encoding="utf-8")
 
     print(f"完成，Qlib 数据已写入：{config.QLIB_DATA_DIR}")
     print(f"数据溯源写入：{config.OUTPUT_DIR / 'run_meta.json'}")

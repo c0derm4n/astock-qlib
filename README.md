@@ -3,10 +3,11 @@
 用机器学习给一篮子 A股 ETF **每日打分排名、做行业/风格轮动**的最小可用系统。
 （本项目由"买个股"升级为**只买 ETF**：单只 ETF 已分散、无个股暴雷、行业动量更持续，且**免印花税**、成本更低，更契合 TopK 排序轮动。）
 
-- **标的**：内置**宽基 + 行业主题 + 跨资产防守 ETF**（沪深300/500/1000/50/创业板/科创/红利 + 证券/银行/医药/消费/芯片/军工/光伏/新能源车/有色/煤炭… + 十年国债/黄金/纳指/恒生，见 `universe.py`）
+- **标的**：内置**宽基 + 行业主题 + 跨资产防守 ETF**（沪深300/500/1000/50/创业板/科创/红利 + 证券/银行/医药/消费/芯片/军工/光伏/新能源车/有色/煤炭… + 十年国债/黄金，见 `universe.py`）。**只操作 ETF，且不考虑 QDII**（纳指/恒生仅留历史数据，`config.EXCLUDE_QDII=True` 彻底不参与交易）
 - **特征**：微软 Qlib 内置的 **Alpha158**——158 个技术指标（K线形态、均线、动量ROC、波动率、量价相关性、类RSI等）
 - **模型**：LightGBM 预测未来 20 个交易日收益，做横截面排序轮动（中长线趋势）
-- **策略**：TopK 轮动 + **趋势过滤**（过去60日收益≤0的资产降权，避开下行）+ **跨资产防守**（池含债/金/纳指/恒生，坏年份自动轮到防守）
+- **策略**：TopK 轮动 + **趋势过滤**（过去60日收益≤0的资产降权，避开下行）+ **跨资产防守**（池含债/金，坏年份自动轮到防守）
+- **每日决策**：交易日 **14:30** 运行 `python -m src.decide`（可用任务计划自动触发），用盘中现价≈收盘价打分，对比持仓输出**买入/卖出/持有**清单
 - **验证**：**walk-forward 滚动重训**（逐年样本外，2021–2026），回测计入 ETF 成本/涨跌停
 - **输出**：每个交易日一份 TopK 选 ETF 清单（代码+名称+打分）
 - **对标**：真实**沪深300**（BENCH300，以沪深300ETF代理）＋全ETF等权参考
@@ -28,8 +29,9 @@ astock-qlib/
 │   │   └── akshare_source.py  # fund_etf_hist_em（校验/补数）
 │   ├── fetch_data.py  # 第1步：抓数据 -> DuckDB（含抽样交叉校验）
 │   ├── dump_qlib.py   # 第2步：DuckDB(后复权) -> Qlib 二进制 + 动态池 + 溯源
-│   ├── train.py       # 第3步：Alpha158->LGB->IC+回测(滑点)+溢价过滤+选ETF
-│   ├── predict.py     # 第4步：输出某交易日 TopK 选 ETF 清单
+│   ├── train.py       # 第3步：Alpha158->LGB->IC+回测(滑点)+QDII排除+选ETF
+│   ├── predict.py     # 第4步：输出某交易日 TopK 选 ETF 清单（历史复盘）
+│   ├── decide.py      # ★ 每日 14:30 盘中决策：快照打分 vs 持仓 -> 买卖清单
 │   ├── universe_filter.py  # 动态 ETF 池过滤（上市时长/流动性/规模）
 │   ├── data_report.py # 数据血缘报告（拉取/校验汇总）
 │   └── utils.py       # 名称映射、代码转换、清单格式化
@@ -71,11 +73,21 @@ python -m src.predict                    # 最新交易日 TopK
 python -m src.predict --date 2025-06-30  # 指定历史某日复盘
 python -m src.predict --topk 10          # 只看前10
 
+# 每日盘中决策（交易日 14:30 运行；只操作ETF、QDII不参与）
+python -m src.decide                     # 补数+快照+打分 -> 买入/卖出/持有清单
+python -m src.decide --no-refresh --apply  # 确认执行后把结果写回持仓文件
+
+# （可选）注册 Windows 任务计划，周一~周五 14:30 自动运行（周末脚本自行跳过）
+schtasks /Create /TN "ETF轮动1430决策" /SC WEEKLY /D MON,TUE,WED,THU,FRI /ST 14:30 `
+  /TR "pwsh -NoProfile -ExecutionPolicy Bypass -File e:\tcl_expert_llm\astock-qlib\run_decide_1430.ps1"
+
 # （可选）查看数据血缘报告：拉取/校验汇总
 python -m src.data_report
 ```
 
-**日常使用**：中长线约每月调仓一次。每次想更新时，依次跑 `fetch_data → dump_qlib → train`（train 会自动重训并输出最新清单），再用 `predict` 查看。
+**日常使用**：
+- **每个交易日 14:30**：`src.decide` 自动/手动跑一次，看 `output/decision_YYYYMMDD.csv` 的买卖清单；按清单成交后用 `--apply` 更新持仓（持仓存在 `output/positions.json`，也可手工编辑对齐实盘）；
+- **约每月一次**：重跑 `fetch_data → dump_qlib → train` 重训模型（超过 `MODEL_STALE_DAYS` 天未重训，decide 会提示）。
 
 ---
 
@@ -130,7 +142,9 @@ ETF 轮动比个股选股**更契合本管道**，但仍**不是稳赢的银弹*
 | `BENCHMARK_SYMBOL` | 回测主基准（默认 `BENCH300`=沪深300代理）；`EQW_BENCH_SYMBOL`=等权参考 |
 | `LABEL_HORIZON` | 预测未来多少交易日的收益（默认20≈1个月） |
 | `TRAIN/VALID/TEST_PERIOD` | 单次切分日期（仅 `WALK_FORWARD=False` 时用） |
-| `TOPK` / `N_DROP` | 持仓只数 / 每次最多换手只数（默认 6/1） |
+| `TOPK` / `N_DROP` | 持仓只数 / 每次最多换手只数（默认 6/1，回测与每日决策共用） |
+| `EXCLUDE_QDII` | **不考虑 QDII**（默认 True：纳指/恒生剔除出可交易池/信号/决策） |
+| `DECISION_RUN_TIME` / `POSITIONS_FILE` | 每日决策建议运行时刻(14:30) / 持仓状态文件 |
 | `OPEN_COST/CLOSE_COST` | 买入/卖出费率（ETF **免印花税**，默认 0.0003） |
 | `LGB_PARAMS` | LightGBM 超参 |
 | `PRIMARY_BAR_SOURCE` | 日线主源：`tushare`(默认) / `akshare`(免费兜底) |

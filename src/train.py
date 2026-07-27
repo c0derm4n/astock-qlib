@@ -159,6 +159,20 @@ def trend_filtered_signal(pred: pd.Series) -> pd.Series:
     return pd.Series(arr, index=pred.index, name="score")
 
 
+def exclude_qdii_signal(pred: pd.Series) -> pd.Series:
+    """只操作非 QDII 的 ETF：从信号中直接删除 QDII 行(非降权)，回测/选ETF清单
+    彻底不见 QDII。dump 层已从 etf.txt 剔除，此处是旧 Qlib 数据的保险。"""
+    if not getattr(config, "EXCLUDE_QDII", False):
+        return pred
+    insts = pred.index.get_level_values("instrument")
+    is_qdii = insts.map(lambda s: universe.get_asset_class(symbol_to_code(str(s))) == "qdii")
+    n = int(pd.Series(is_qdii).sum())
+    if n:
+        print(f"QDII 排除：剔除 {n} 个(日,标的)信号行(不参与交易)")
+        pred = pred[~pd.Series(is_qdii, index=pred.index)]
+    return pred
+
+
 def premium_filtered_signal(pred: pd.Series) -> pd.Series:
     """QDII 溢价过滤：决策日溢价率 > PREMIUM_CAP 的 QDII 标的打分压到最低，
     避免高溢价追高。溢价=市场收盘价/单位净值-1，取 nav_date<=当日最近净值（无未来函数）。"""
@@ -283,8 +297,9 @@ def main() -> None:
     # 原始预测（未过滤）落盘，供对照脚本回测“关闭趋势过滤”版
     pred.to_pickle(config.OUTPUT_DIR / "predictions_raw.pkl")
 
-    # 策略信号：趋势过滤 + QDII 溢价过滤（叠加），用于回测与选ETF清单
-    signal = trend_filtered_signal(pred)
+    # 策略信号：QDII 排除 → 趋势过滤 → QDII 溢价过滤(未排除时才生效)，用于回测与选ETF清单
+    signal = exclude_qdii_signal(pred)
+    signal = trend_filtered_signal(signal)
     signal = premium_filtered_signal(signal)
     signal.to_pickle(config.OUTPUT_DIR / "predictions.pkl")
 
