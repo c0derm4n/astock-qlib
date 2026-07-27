@@ -14,6 +14,22 @@
 
 技术要点：哈希路由（`createWebHashHistory`，便于 FastAPI 直接托管静态文件）；axios 拦截器统一弹错误提示；顶栏每 5 秒轮询管道状态。
 
+## 界面展示
+
+> 下图为演示数据截图（本机数据源暂未打通时的填充样例），实际数据以训练产物为准。
+
+| 总览 | 选ETF清单 |
+|------|-----------|
+| ![总览](../docs/images/web-dashboard.png) | ![选ETF清单](../docs/images/web-picks.png) |
+
+| 每日决策 | 回测分析 |
+|----------|----------|
+| ![每日决策](../docs/images/web-decision.png) | ![回测分析](../docs/images/web-backtest.png) |
+
+| 数据管道 |
+|----------|
+| ![数据管道](../docs/images/web-pipeline.png) |
+
 ## 目录结构
 
 ```

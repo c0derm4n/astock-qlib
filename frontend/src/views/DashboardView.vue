@@ -25,20 +25,20 @@
         </template>
         <el-row :gutter="16">
           <el-col :span="4">
-            <el-statistic title="策略累计收益(扣费)"><template #default>{{ pct(bt.strategy_cum_return_pct) }}</template></el-statistic>
+            <el-statistic title="策略累计收益(扣费)" :value="pct(bt.strategy_cum_return_pct)" />
           </el-col>
           <el-col :span="4">
-            <el-statistic title="沪深300累计"><template #default>{{ pct(bt.hs300_cum_return_pct) }}</template></el-statistic>
+            <el-statistic title="沪深300累计" :value="pct(bt.hs300_cum_return_pct)" />
           </el-col>
           <el-col :span="4">
-            <el-statistic title="等权ETF基准累计"><template #default>{{ pct(bt.eqw_cum_return_pct) }}</template></el-statistic>
+            <el-statistic title="等权ETF基准累计" :value="pct(bt.eqw_cum_return_pct)" />
           </el-col>
           <el-col :span="4">
-            <el-statistic title="超额年化(vs沪深300)"><template #default>{{ pct(bt.excess_annual_pct) }}</template></el-statistic>
+            <el-statistic title="超额年化(vs沪深300)" :value="pct(bt.excess_annual_pct)" />
           </el-col>
           <el-col :span="4"><el-statistic title="信息比率IR" :value="fmt(bt.information_ratio)" /></el-col>
           <el-col :span="4">
-            <el-statistic title="超额最大回撤"><template #default>{{ pct(bt.excess_max_drawdown_pct) }}</template></el-statistic>
+            <el-statistic title="超额最大回撤" :value="pct(bt.excess_max_drawdown_pct)" />
           </el-col>
         </el-row>
       </el-card>
