@@ -1,0 +1,4 @@
+# 后端 API 依赖（安装进项目同一个 .venv：pip install -r backend/requirements.txt）
+# 注意：训练管道依赖(pyqlib/akshare/lightgbm/pandas)见根目录 requirements.txt
+fastapi>=0.115
+uvicorn>=0.30
