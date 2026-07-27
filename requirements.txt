@@ -3,7 +3,9 @@
 # 建议用清华镜像：pip install -r requirements.txt -i https://pypi.tuna.tsinghua.edu.cn/simple
 
 pyqlib==0.9.7      # 微软 Qlib，AI量化框架（会自动安装 lightgbm/pandas/numpy 等）
-akshare==1.18.75   # A股行情数据源（东方财富接口）
+tushare==1.4.29    # ETF 主数据源（fund_daily/fund_adj/fund_nav/etf_basic，需 TUSHARE_TOKEN）
+akshare==1.18.75   # ETF 校验/补数源（fund_etf_hist_em）
+duckdb==1.5.5      # 本地规范化真源 + 数据血缘（DuckDB/Parquet）
 
 # 以下由 pyqlib 自动带入，列出以固定验证过的版本
 lightgbm==4.7.0

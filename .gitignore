@@ -4,6 +4,7 @@
 # 生成的数据与产物（体积大，不入库）
 qlib_data/
 raw_cache/
+data/
 output/
 models/
 mlruns/

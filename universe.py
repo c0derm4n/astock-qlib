@@ -34,9 +34,28 @@ UNIVERSE: dict[str, str] = {
     # ---- 周期 / 资源 / 地产 ----
     "512400": "有色金属ETF", "515220": "煤炭ETF", "512200": "房地产ETF",
     "512580": "环保ETF",
+    # ---- 跨资产防守（债/金/海外，坏年份轮动到这里降回撤）----
+    "511260": "十年国债ETF", "518880": "黄金ETF",
+    "513100": "纳指ETF", "159920": "恒生ETF",
 }
 
 
 def get_codes() -> list[str]:
     """返回 ETF 池的6位代码列表。"""
     return list(UNIVERSE.keys())
+
+
+# 资产类别显式覆盖（非 equity 的跨资产/防守标的）：
+#   qdii=跨境(纳指/恒生等，存在溢价折价)；bond=债；commodity=商品(黄金)。
+# 用于 QDII 溢价过滤与动态池分类的本地兜底(当 etf_basic 缺 etf_type 时)。
+_ASSET_CLASS_OVERRIDE: dict[str, str] = {
+    "511260": "bond",       # 十年国债ETF
+    "518880": "commodity",  # 黄金ETF
+    "513100": "qdii",       # 纳指ETF
+    "159920": "qdii",       # 恒生ETF
+}
+
+
+def get_asset_class(code: str) -> str:
+    """返回资产类别：equity/bond/commodity/qdii（未命中覆盖则默认 equity）。"""
+    return _ASSET_CLASS_OVERRIDE.get(str(code).zfill(6), "equity")

@@ -12,6 +12,7 @@ Qlib 文件存储格式(已核对 qlib.data.storage.file_storage)：
 """
 from __future__ import annotations
 
+import json
 import shutil
 from collections import defaultdict
 
@@ -19,32 +20,21 @@ import numpy as np
 import pandas as pd
 
 import config
-import universe
-from src.utils import to_qlib_symbol
+from src.datasource import DataStore
+from src.universe_filter import build_dynamic_universe
 
 FIELDS = ["open", "high", "low", "close", "volume", "vwap", "factor", "change"]
 
 
-def load_all() -> dict[str, pd.DataFrame]:
-    """读取当前 ETF 池对应的缓存 CSV，返回 {symbol: df}。
+def load_all(store: DataStore) -> dict[str, pd.DataFrame]:
+    """从 DuckDB 读后复权日线，返回 {symbol: df[date + FIELDS]}。
 
-    只加载 universe 中的 ETF 符号，自动忽略 raw_cache 里的历史遗留文件
-    (如上一版的个股缓存)，避免污染 ETF 池与合成基准。
+    后复权在 store.load_hfq_bars() 内完成（hfq=raw×adj_factor，factor 恒 1.0，
+    change=原价 pct/100 供涨跌停判定）。仅含 bars_raw 中的 ETF。
     """
-    valid = {to_qlib_symbol(c) for c in universe.get_codes()}
-    valid.discard(None)
-    data = {}
-    for f in sorted(config.RAW_CACHE_DIR.glob("*.csv")):
-        if f.stem.startswith("_"):  # 跳过 _names.csv 等辅助文件
-            continue
-        if f.stem not in valid:     # 跳过非当前 ETF 池的历史遗留缓存(如旧个股)
-            continue
-        df = pd.read_csv(f)
-        if df.empty:
-            continue
-        df = df.dropna(subset=["date", "close"]).sort_values("date").reset_index(drop=True)
-        data[f.stem] = df
-    return data
+    data = store.load_hfq_bars()
+    return {s: df for s, df in data.items()
+            if df is not None and not df.empty and df["close"].notna().any()}
 
 
 def build_calendar(data: dict[str, pd.DataFrame]) -> list[str]:
@@ -85,16 +75,16 @@ def write_calendar(calendar: list[str]) -> None:
     (cal_dir / "day.txt").write_text("\n".join(calendar) + "\n", encoding="utf-8")
 
 
-def write_instruments(data: dict[str, pd.DataFrame]) -> None:
+def write_instruments(data: dict[str, pd.DataFrame], tradable: set[str]) -> None:
+    """all.txt 含全部(+基准实例，供 benchmark 读取)；<market>.txt 仅含动态可交易 ETF。"""
     inst_dir = config.QLIB_DATA_DIR / "instruments"
     inst_dir.mkdir(parents=True, exist_ok=True)
     all_lines, tradable_lines = [], []
     for symbol, df in data.items():
         line = f"{symbol}\t{df['date'].iloc[0]}\t{df['date'].iloc[-1]}"
         all_lines.append(line)
-        if symbol != config.BENCHMARK_SYMBOL:  # 基准指数不计入可交易股票池
+        if not symbol.startswith("BENCH") and symbol in tradable:
             tradable_lines.append(line)
-    # all.txt 含基准指数(供 benchmark 读取)；csi300.txt 仅含可交易股票
     (inst_dir / "all.txt").write_text("\n".join(all_lines) + "\n", encoding="utf-8")
     (inst_dir / f"{config.MARKET}.txt").write_text("\n".join(tradable_lines) + "\n", encoding="utf-8")
 
@@ -121,27 +111,56 @@ def write_features(data: dict[str, pd.DataFrame], calendar: list[str]) -> None:
 
 
 def main() -> None:
-    data = load_all()
-    if not data:
-        raise SystemExit(f"没有缓存数据，请先运行 fetch_data。目录：{config.RAW_CACHE_DIR}")
-    print(f"读取到 {len(data)} 只股票")
+    with DataStore() as store:
+        data = load_all(store)
+        if not data:
+            raise SystemExit(
+                f"DuckDB 无数据，请先运行：python -m src.fetch_data。库：{config.DUCKDB_PATH}")
+        print(f"读取到 {len(data)} 只 ETF（后复权）")
 
-    # 清空旧的 features，避免残留(calendar 变化会导致下标错位)
-    feat_root = config.QLIB_DATA_DIR / "features"
-    if feat_root.exists():
-        shutil.rmtree(feat_root)
+        # 动态可交易池（Phase 5）：上市时长/流动性/规模过滤；关闭则全部可交易
+        if getattr(config, "USE_DYNAMIC_UNIVERSE", False):
+            tradable = set(build_dynamic_universe(store))
+            print(f"动态池：{len(tradable)}/{len([s for s in data if not s.startswith('BENCH')])} 只通过过滤")
+        else:
+            tradable = {s for s in data if not s.startswith("BENCH")}
 
-    calendar = build_calendar(data)
-    print(f"全局日历：{len(calendar)} 个交易日（{calendar[0]} ~ {calendar[-1]}）")
+        # 清空旧的 features，避免残留(calendar 变化会导致下标错位)
+        feat_root = config.QLIB_DATA_DIR / "features"
+        if feat_root.exists():
+            shutil.rmtree(feat_root)
 
-    # 合成等权基准指数，作为不可交易的对标实例
-    data[config.BENCHMARK_SYMBOL] = build_benchmark(data, calendar)
+        calendar = build_calendar(data)
+        print(f"全局日历：{len(calendar)} 个交易日（{calendar[0]} ~ {calendar[-1]}）")
 
-    write_calendar(calendar)
-    write_instruments(data)
-    write_features(data, calendar)
+        # 基准实例（不可交易，供回测对标）：
+        #   BENCH    = 全ETF等权指数（衡量行业/风格轮动alpha）
+        #   BENCH300 = 沪深300（以沪深300ETF代理，衡量能否跑赢大盘）
+        data[config.EQW_BENCH_SYMBOL] = build_benchmark(data, calendar)
+        if "SH510300" in data:
+            data[config.BENCHMARK_SYMBOL] = data["SH510300"].copy()
+        else:
+            print("警告：缺少 SH510300，无法生成沪深300基准，回测需退回等权基准")
+
+        write_calendar(calendar)
+        write_instruments(data, tradable)
+        write_features(data, calendar)
+
+        # 数据血缘/溯源：记录本次 dump 的数据版本与范围（Phase 3）
+        run_meta = {
+            "dumped_at": pd.Timestamp.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "data_version": store.latest_run_id(),
+            "calendar_start": calendar[0],
+            "calendar_end": calendar[-1],
+            "n_instruments_all": len([s for s in data if not s.startswith("BENCH")]),
+            "n_tradable": len(tradable),
+            "tradable": sorted(tradable),
+        }
+        (config.OUTPUT_DIR / "run_meta.json").write_text(
+            json.dumps(run_meta, ensure_ascii=False, indent=2), encoding="utf-8")
 
     print(f"完成，Qlib 数据已写入：{config.QLIB_DATA_DIR}")
+    print(f"数据溯源写入：{config.OUTPUT_DIR / 'run_meta.json'}")
 
 
 if __name__ == "__main__":
