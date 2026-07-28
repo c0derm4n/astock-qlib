@@ -46,7 +46,7 @@ import { onMounted, ref } from 'vue'
 import api from '../api'
 
 const date = ref(null)
-const topk = ref(5)
+const topk = ref(6) // 默认与 config.TOPK 对齐，onMounted 时从 /config 同步
 const rows = ref([])
 const actualDate = ref('')
 const loading = ref(false)
@@ -79,8 +79,9 @@ function loadLatest() {
 
 onMounted(async () => {
   try {
-    const dates = await api.get('/picks/dates')
-    validDates.value = new Set(dates)
+    const [cfg, dates] = await Promise.allSettled([api.get('/config'), api.get('/picks/dates')])
+    if (cfg.status === 'fulfilled' && cfg.value.topk) topk.value = cfg.value.topk
+    if (dates.status === 'fulfilled') validDates.value = new Set(dates.value)
     await load()
   } catch {
     /* 无预测数据时显示空态 */

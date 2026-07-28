@@ -9,8 +9,10 @@
           <el-descriptions-item label="沪深300累计(代理)">{{ pct(summary.bench_cum_return) }}</el-descriptions-item>
           <el-descriptions-item label="超额年化(vs沪深300)">{{ pct(summary.excess_annual) }}</el-descriptions-item>
           <el-descriptions-item label="信息比率IR">{{ fmt(summary.information_ratio) }}</el-descriptions-item>
-          <el-descriptions-item label="最大回撤">{{ pct(summary.max_drawdown) }}</el-descriptions-item>
+          <el-descriptions-item label="超额最大回撤">{{ pct(summary.excess_max_drawdown) }}</el-descriptions-item>
+          <el-descriptions-item label="策略最大回撤">{{ pct(summary.strategy_max_drawdown) }}</el-descriptions-item>
         </el-descriptions>
+        <div class="hint">年化/IR/回撤口径与训练端 qlib risk_analysis 一致（年化=日均×252，回撤基于日收益累加）</div>
       </el-card>
 
       <el-card>
@@ -82,6 +84,11 @@ onUnmounted(() => {
 <style scoped>
 .mb16 {
   margin-bottom: 16px;
+}
+.hint {
+  margin-top: 8px;
+  font-size: 12px;
+  color: #909399;
 }
 .chart {
   width: 100%;

@@ -77,16 +77,20 @@ def write_calendar(calendar: list[str]) -> None:
     (cal_dir / "day.txt").write_text("\n".join(calendar) + "\n", encoding="utf-8")
 
 
-def write_instruments(data: dict[str, pd.DataFrame], tradable: set[str]) -> None:
-    """all.txt 含全部(+基准实例，供 benchmark 读取)；<market>.txt 仅含动态可交易 ETF。"""
+def write_instruments(data: dict[str, pd.DataFrame], tradable: set[str],
+                      entry_dates: dict[str, str] | None = None) -> None:
+    """all.txt 含全部(+基准实例，供 benchmark 读取)；<market>.txt 仅含动态可交易 ETF。
+
+    entry_dates：{符号 -> 首个可交易日}，上市观察期 point-in-time 生效时把
+    <market>.txt 的起始日后移（all.txt 仍保留全量历史供特征回看/研究）。"""
     inst_dir = config.QLIB_DATA_DIR / "instruments"
     inst_dir.mkdir(parents=True, exist_ok=True)
     all_lines, tradable_lines = [], []
     for symbol, df in data.items():
-        line = f"{symbol}\t{df['date'].iloc[0]}\t{df['date'].iloc[-1]}"
-        all_lines.append(line)
+        all_lines.append(f"{symbol}\t{df['date'].iloc[0]}\t{df['date'].iloc[-1]}")
         if not symbol.startswith("BENCH") and symbol in tradable:
-            tradable_lines.append(line)
+            start = (entry_dates or {}).get(symbol, df["date"].iloc[0])
+            tradable_lines.append(f"{symbol}\t{start}\t{df['date'].iloc[-1]}")
     (inst_dir / "all.txt").write_text("\n".join(all_lines) + "\n", encoding="utf-8")
     (inst_dir / f"{config.MARKET}.txt").write_text("\n".join(tradable_lines) + "\n", encoding="utf-8")
 
@@ -142,6 +146,30 @@ def run_dump(store: DataStore, data: dict[str, pd.DataFrame]) -> None:
             tradable -= qdii
             print(f"排除 QDII {len(qdii)} 只(不参与交易)：{', '.join(sorted(qdii))}")
 
+    # 上市观察期 point-in-time 生效：第 UNIVERSE_MIN_LIST_DAYS+1 个交易日才可交易，
+    # 回测中次新 ETF 首年只积累数据不参与候选，与实盘动态池同口径（无未来函数）。
+    # 首个bar紧贴抓取起点 START_DATE 的是被窗口截断的存量老 ETF(真实上市更早)，豁免
+    entry_dates: dict[str, str] = {}
+    if getattr(config, "UNIVERSE_PIT_ENTRY", False):
+        lag = int(config.UNIVERSE_MIN_LIST_DAYS)
+        cutoff = pd.Timestamp(config.START_DATE) + pd.Timedelta(days=14)
+        delayed = []
+        for sym in sorted(tradable):
+            df = data.get(sym)
+            if df is None or df.empty:
+                continue
+            if pd.Timestamp(df["date"].iloc[0]) <= cutoff:
+                continue  # 存量老 ETF：数据起点=抓取起点，观察期早已满足
+            if len(df) <= lag:
+                tradable.discard(sym)  # 观察期未满，整体不可交易(与动态池次新剔除一致)
+                continue
+            entry_dates[sym] = str(df["date"].iloc[lag])
+            delayed.append(f"{sym}({df['date'].iloc[0]}上市→{entry_dates[sym]}入池)")
+        if delayed:
+            print(f"上市观察期({lag}交易日)：{len(delayed)} 只延迟入池")
+            for line in delayed:
+                print(f"  - {line}")
+
     # 清空旧的 features，避免残留(calendar 变化会导致下标错位)
     feat_root = config.QLIB_DATA_DIR / "features"
     if feat_root.exists():
@@ -160,7 +188,7 @@ def run_dump(store: DataStore, data: dict[str, pd.DataFrame]) -> None:
         print("警告：缺少 SH510300，无法生成沪深300基准，回测需退回等权基准")
 
     write_calendar(calendar)
-    write_instruments(data, tradable)
+    write_instruments(data, tradable, entry_dates)
     write_features(data, calendar)
 
     # 数据血缘/溯源：记录本次 dump 的数据版本与范围（Phase 3）

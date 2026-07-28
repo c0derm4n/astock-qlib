@@ -17,6 +17,7 @@ import time
 from collections import deque
 
 import config
+from backend import data_service
 
 BASE_DIR = config.BASE_DIR
 LOG_DIR = config.OUTPUT_DIR / "pipeline_logs"
@@ -135,11 +136,43 @@ def parse_train_metrics(text: str) -> dict:
     return {"ic": ic, "backtest": backtest}
 
 
+def _merge_run_meta(metrics: dict) -> None:
+    """train 会把结构化 IC/回测指标写进 output/run_meta.json（权威源），
+    用它覆盖正则解析结果，正则仅兜底并补充 run_meta 缺失的字段
+    （等权ETF基准累计、策略年化、topk）。"""
+    meta = data_service.read_run_meta()
+    if isinstance(meta.get("ic_metrics"), dict):
+        metrics["ic"].update(meta["ic_metrics"])
+    bt = meta.get("backtest") or {}
+
+    def _pct100(key: str) -> float | None:
+        v = bt.get(key)
+        return round(float(v) * 100, 2) if v is not None else None
+
+    overlay = {
+        "start": bt.get("bt_start"),
+        "end": bt.get("bt_end"),
+        "strategy_cum_return_pct": _pct100("cum_strategy"),
+        "hs300_cum_return_pct": _pct100("cum_csi300"),
+        "excess_annual_pct": _pct100("excess_annual"),
+        "information_ratio": bt.get("info_ratio"),
+        "excess_max_drawdown_pct": _pct100("excess_max_drawdown"),
+        "strategy_max_drawdown_pct": _pct100("strategy_max_drawdown"),
+        "slippage_bps": bt.get("slippage_bps"),
+        "deal_price": bt.get("deal_price"),
+    }
+    metrics["backtest"].update({k: v for k, v in overlay.items() if v is not None})
+    metrics["backtest"].setdefault("topk", config.TOPK)
+    if meta.get("data_version"):
+        metrics["data_version"] = meta["data_version"]
+
+
 def _save_metrics() -> None:
     log_file = LOG_DIR / "train.log"
     if not log_file.exists():
         return
     metrics = parse_train_metrics(log_file.read_text(encoding="utf-8", errors="replace"))
+    _merge_run_meta(metrics)
     metrics["finished_at"] = time.strftime("%Y-%m-%d %H:%M:%S")
     METRICS_FILE.write_text(
         json.dumps(metrics, ensure_ascii=False, indent=2), encoding="utf-8"

@@ -45,27 +45,49 @@ def overview() -> dict:
 
 @app.get("/api/universe")
 def get_universe() -> list[dict]:
-    """内置 ETF 池（universe.py）。"""
-    return [
-        {"code": code, "name": name, "symbol": to_qlib_symbol(code)}
-        for code, name in universe.UNIVERSE.items()
-    ]
+    """内置 ETF 池（universe.py）；标注资产类别与是否可交易。
+
+    可交易以最近一次 dump 的 run_meta.json 为准（含动态池过滤 + QDII 排除）；
+    尚未 dump 过时退化为“非 QDII 即可交易”的静态口径。"""
+    tradable = set(data_service.read_run_meta().get("tradable") or [])
+    rows = []
+    for code, name in universe.UNIVERSE.items():
+        symbol = to_qlib_symbol(code)
+        cls = universe.get_asset_class(code)
+        if tradable:
+            ok = symbol in tradable
+        else:
+            ok = not (config.EXCLUDE_QDII and cls == "qdii")
+        rows.append({"code": code, "name": name, "symbol": symbol,
+                     "asset_class": cls, "tradable": ok})
+    return rows
 
 
 @app.get("/api/config")
 def get_config() -> dict:
-    """关键全局配置（config.py），只读展示。"""
+    """关键全局配置（config.py），只读展示；口径与当前生产逻辑对齐。"""
     return {
         "market": config.MARKET,
         "start_date": config.START_DATE,
         "label_horizon": config.LABEL_HORIZON,
+        # 切分口径：walk_forward=True 时逐年滚动重训，train/valid/test 不生效
+        "walk_forward": config.WALK_FORWARD,
+        "wf_train_start": config.WF_TRAIN_START,
+        "wf_test_years": list(config.WF_TEST_YEARS),
         "train_period": list(config.TRAIN_PERIOD),
         "valid_period": list(config.VALID_PERIOD),
         "test_period": list(config.TEST_PERIOD),
         "topk": config.TOPK,
         "n_drop": config.N_DROP,
+        "hold_thresh": config.HOLD_THRESH,
         "open_cost": config.OPEN_COST,
         "close_cost": config.CLOSE_COST,
+        "slippage_bps": config.SLIPPAGE_BPS * 1e4,
+        "deal_price": config.DEAL_PRICE,
+        "exclude_qdii": config.EXCLUDE_QDII,
+        "use_trend_filter": config.USE_TREND_FILTER,
+        "use_dynamic_universe": config.USE_DYNAMIC_UNIVERSE,
+        "decision_run_time": config.DECISION_RUN_TIME,
     }
 
 

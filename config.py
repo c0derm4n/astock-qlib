@@ -166,3 +166,9 @@ USE_DYNAMIC_UNIVERSE = True
 UNIVERSE_MIN_LIST_DAYS = 250        # 上市≥250交易日≈1年
 UNIVERSE_MIN_AVG_AMOUNT = 5e7       # 近20日日均成交额≥5000万元
 UNIVERSE_MIN_AUM = 2e8              # 规模(net_asset)≥2亿元
+
+# 上市观察期 point-in-time 生效：每只 ETF 上市满 UNIVERSE_MIN_LIST_DAYS 个交易日
+# 后才进入可交易池（逐标的把 etf.txt 起始日后移）。否则回测里次新 ETF 上市
+# 首年就参与候选，而实盘动态池永远不会买，回测/实盘口径不一致（高估收益）；
+# 观察期内只积累数据不交易（历史仍在 all.txt，特征回看可用）。
+UNIVERSE_PIT_ENTRY = True

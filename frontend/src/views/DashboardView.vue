@@ -5,8 +5,8 @@
       <!-- 预测质量 -->
       <el-card v-if="metrics" class="mb16">
         <template #header>
-          <span>预测质量（测试集）</span>
-          <span class="card-sub">训练时间：{{ metrics.finished_at || '-' }}</span>
+          <span>预测质量（walk-forward 样本外）</span>
+          <span class="card-sub">训练时间：{{ metrics.finished_at || '-' }}<template v-if="metrics.data_version">　数据版本：{{ metrics.data_version }}</template></span>
         </template>
         <el-row :gutter="16">
           <el-col :span="6"><el-statistic title="IC均值" :value="fmt(metrics.ic?.['IC均值'])" /></el-col>
@@ -20,8 +20,8 @@
       <!-- 回测概览 -->
       <el-card v-if="bt && Object.keys(bt).length" class="mb16">
         <template #header>
-          <span>回测概览</span>
-          <span class="card-sub">区间：{{ bt.start }} ~ {{ bt.end }}（持仓 {{ bt.topk }} 只ETF）</span>
+          <span>回测概览（walk-forward 样本外）</span>
+          <span class="card-sub">区间：{{ bt.start }} ~ {{ bt.end }}（持仓 {{ bt.topk }} 只ETF<template v-if="bt.slippage_bps != null">，滑点 {{ bt.slippage_bps }}bp</template>）</span>
         </template>
         <el-row :gutter="16">
           <el-col :span="4">
@@ -41,6 +41,9 @@
             <el-statistic title="超额最大回撤" :value="pct(bt.excess_max_drawdown_pct)" />
           </el-col>
         </el-row>
+        <div class="hint" v-if="bt.strategy_max_drawdown_pct != null">
+          策略自身：年化 {{ pct(bt.strategy_annual_pct) }}，最大回撤 {{ pct(bt.strategy_max_drawdown_pct) }}
+        </div>
       </el-card>
 
       <!-- 最新选 ETF -->

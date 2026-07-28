@@ -8,6 +8,7 @@
         :title="`${decision.date} 盘中决策清单（每日 14:30 到「数据管道」运行 每日决策 更新；QDII 不参与）`"
       />
       <el-card>
+        <div v-if="positions" class="pos-line">当前持仓：{{ positions.positions.length ? positions.positions.join('、') : '空仓（按 TopK 一次建仓）' }}</div>
         <el-table :data="decision.rows" stripe style="width: 100%">
           <el-table-column label="操作" width="100">
             <template #default="{ row }">
@@ -38,12 +39,14 @@ import api from '../api'
 
 const loading = ref(true)
 const decision = ref(null)
+const positions = ref(null)
 
 const tagType = (op) => ({ 买入: 'danger', 卖出: 'success', 持有: 'info' }[op] || 'info')
 
 onMounted(async () => {
   try {
     decision.value = await api.get('/decision/latest')
+    positions.value = decision.value.positions || null
   } catch {
     /* 无决策数据时显示空态 */
   } finally {
@@ -58,5 +61,10 @@ onMounted(async () => {
 }
 .mt16 {
   margin-top: 16px;
+}
+.pos-line {
+  margin-bottom: 12px;
+  font-size: 13px;
+  color: #606266;
 }
 </style>
