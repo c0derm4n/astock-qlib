@@ -2,7 +2,8 @@
 第 3 步：训练 ETF 轮动模型并回测（升级版）。
 
 在原有 Alpha158 -> LightGBM -> TopK 轮动的基础上，加入四项优化：
-  ① 趋势/绝对动量过滤：过去 N 日收益<=0 的标的打分压到最低，TopK 避开下行资产；
+  ① 趋势/绝对动量过滤 v2：多窗口(20/60/120日)迟滞投票判定下行，保序降权，
+     债/金防守资产豁免（见 src.utils.trend_down_state）；
   ② 跨资产防守：池中含债/金/海外 ETF（见 universe.py），坏年份自动轮到防守；
   ③ 滚动重训 / walk-forward：逐年用其之前数据训练，拼接样本外预测再回测；
   ④ 微调 TOPK/N_DROP/LABEL_HORIZON（见 config.py）。
@@ -38,7 +39,8 @@ from qlib.contrib.evaluate import risk_analysis
 import config
 import universe
 from src.datasource import DataStore
-from src.utils import load_names, picks_table, symbol_to_code
+from src.utils import (load_names, patch_qlib_deterministic, picks_table,
+                       symbol_to_code, trend_down_state)
 
 
 def build_dataset(train_period, valid_period, test_period) -> DatasetH:
@@ -79,15 +81,17 @@ def _predict_and_label(model: LGBModel, dataset: DatasetH):
     return pred, label
 
 
-def walk_forward():
+def walk_forward(test_years: list[int] | None = None):
     """滚动重训：每个测试年用其之前全部数据训练，拼接样本外预测。
 
     例：测试 2023 -> 训练 2016~2021、验证 2022、预测 2023。逐年滚动、拼接为
     一条连续的样本外预测序列，避免一次性切分的偶然性(真正的 OOS 验证)。
+    test_years 为 None 时用 config.WF_TEST_YEARS；src.train_long 传 2018~2026
+    做近十年扩展窗口验证（早年训练集薄，属真实历史约束）。
     """
     preds, labels = [], []
     last_model = None
-    for ty in config.WF_TEST_YEARS:
+    for ty in (test_years or config.WF_TEST_YEARS):
         train = (config.WF_TRAIN_START, f"{ty - 2}-12-31")
         valid = (f"{ty - 1}-01-01", f"{ty - 1}-12-31")
         test = (f"{ty}-01-01", f"{ty}-12-31")
@@ -137,25 +141,23 @@ def eval_ic(pred: pd.Series, label: pd.Series) -> dict:
 
 
 def trend_filtered_signal(pred: pd.Series) -> pd.Series:
-    """趋势/绝对动量过滤：过去 TREND_WINDOW 日收益<=0 的标的，打分压到最低，
-    使 TopK 轮动避开下行趋势资产（配合池中债/金，坏年份自动轮到防守）。
-    仅用过去价格，无未来函数。"""
+    """趋势过滤 v2：多窗口迟滞投票判定下行后保序降权（统一减固定偏移，
+    被罚组内仍保留模型排序，避免普跌期打分并列退化成随机选）；
+    债/金防守资产豁免，坏年份能真正轮到防守。仅用过去价格，无未来函数。"""
     if not getattr(config, "USE_TREND_FILTER", False):
         return pred
     insts = sorted(set(pred.index.get_level_values("instrument")))
     d0 = pred.index.get_level_values("datetime").min()
     d1 = pred.index.get_level_values("datetime").max()
-    w = config.TREND_WINDOW
-    feat = D.features(insts, [f"$close/Ref($close,{w})-1"], start_time=d0, end_time=d1, freq="day")
-    mom = feat.iloc[:, 0]
-    # D.features 索引为 (instrument, datetime)，对齐到 pred 的 (datetime, instrument)
-    mom = mom.reorder_levels(["datetime", "instrument"]).sort_index().reindex(pred.index)
+    down_df = trend_down_state(insts, d0, d1)  # datetime × instrument 的 bool 表
+    # 对齐到 pred 的 (datetime, instrument) 索引；缺失(停牌/未上市)不罚
+    down = down_df.stack().reindex(pred.index).fillna(False).to_numpy(dtype=bool)
     arr = pred.to_numpy(dtype=float).copy()
-    penalty = float(np.nanmin(arr)) - 1000.0
-    down = (mom <= 0).to_numpy(dtype=bool)  # NaN<=0 -> False(动量未知时不惩罚)
-    arr[down] = penalty
-    n_down = int(down.sum())
-    print(f"趋势过滤：{n_down}/{len(arr)} 个(日,标的)因过去{w}日动量<=0被降权")
+    arr[down] -= float(getattr(config, "TREND_PENALTY", 1000.0))
+    ws = list(getattr(config, "TREND_WINDOWS", [config.TREND_WINDOW]))
+    print(f"趋势过滤v2：{int(down.sum())}/{len(arr)} 个(日,标的)被保序降权"
+          f"（窗口{ws} ≥{getattr(config, 'TREND_VOTE_MIN', 2)}票下行，"
+          f"迟滞±{getattr(config, 'TREND_HYSTERESIS', 0.0):.0%}，债/金豁免）")
     return pd.Series(arr, index=pred.index, name="score")
 
 
@@ -208,7 +210,8 @@ def run_backtest(signal: pd.Series) -> dict:
     open_cost = config.OPEN_COST + slippage
     close_cost = config.CLOSE_COST + slippage
 
-    strategy = TopkDropoutStrategy(signal=signal, topk=config.TOPK, n_drop=config.N_DROP)
+    strategy = TopkDropoutStrategy(signal=signal, topk=config.TOPK, n_drop=config.N_DROP,
+                                       hold_thresh=getattr(config, "HOLD_THRESH", 1))
     executor = SimulatorExecutor(time_per_step="day", generate_portfolio_metrics=True, verbose=False)
     portfolio_dict, _ = backtest(
         start_time=bt_start,
@@ -276,6 +279,7 @@ def run_backtest(signal: pd.Series) -> dict:
 
 def main() -> None:
     qlib.init(provider_uri=str(config.QLIB_DATA_DIR), region=REG_CN)
+    patch_qlib_deterministic()  # 固定回测 tie-breaking，保证跨进程可复现
 
     if getattr(config, "WALK_FORWARD", False):
         print("模式：walk-forward 滚动重训")

@@ -8,9 +8,11 @@ QDII 持仓会被建议清仓）。用 14:30 的实时价近似当日收盘价�
   2. 拉取实时快照(东财 fund_etf_spot_em)，拼出"今日临时K线"（现价≈收盘价）；
   3. 重写 Qlib 数据（复用 dump_qlib.run_dump：动态池 + QDII 排除）；
   4. 加载 models/model.pkl 对今日打分（Alpha158，与训练同口径归一化）；
-  5. 叠加趋势过滤（过去 TREND_WINDOW 日动量<=0 降权）；
+  5. 叠加趋势过滤 v2（多窗口迟滞投票判定下行→保序降权，债/金豁免，
+     与回测 src.utils.trend_down_state 同一函数）；
   6. 与 output/positions.json 持仓对比，按 TopkDropout 同款规则给出
-     买入/卖出/持有清单（每日最多换 N_DROP 只；空仓则一次建仓 TopK）。
+     买入/卖出/持有清单（每日最多换 N_DROP 只；空仓则一次建仓 TopK；
+     持有未满 HOLD_THRESH 个交易日的持仓受保护不卖，与回测 hold_thresh 同口径）。
 
 注意：快照拼的"今日K线"只写进 Qlib 数据(盘中临时)，不落 DuckDB；盘中增量若拉到
 今日部分K线，次日增量会从最后一天(含)续拉并用收盘正式数据覆盖，自愈无残留。
@@ -33,7 +35,6 @@ import argparse
 import json
 import pickle
 
-import numpy as np
 import pandas as pd
 
 import config
@@ -41,7 +42,7 @@ import universe
 from src.datasource import DataStore
 from src import dump_qlib
 from src import fetch_data
-from src.utils import load_names, symbol_to_code, to_qlib_symbol
+from src.utils import load_names, symbol_to_code, to_qlib_symbol, trend_down_state
 
 
 # --------------------------------------------------------------------------
@@ -151,7 +152,6 @@ def score_today(today: str) -> pd.Series:
     import qlib
     from qlib.constant import REG_CN
     from qlib.contrib.data.handler import Alpha158
-    from qlib.data import D
     from qlib.data.dataset import DatasetH
 
     qlib.init(provider_uri=str(config.QLIB_DATA_DIR), region=REG_CN)
@@ -194,17 +194,17 @@ def score_today(today: str) -> pd.Series:
         raise SystemExit(f"打分结果中没有 {today}（今日K线未生成？检查快照/补数是否成功）")
     day = pred.xs(pd.Timestamp(today), level="datetime").astype(float)
 
-    # 趋势过滤（同 train.trend_filtered_signal 口径）：过去 N 日动量<=0 → 降权
+    # 趋势过滤 v2（与回测 trend_down_state 同一函数/同口径）：多窗口迟滞投票
+    # 判定下行 → 保序降权（状态机在函数内从历史重放，无未来函数）
     if getattr(config, "USE_TREND_FILTER", False):
-        w = config.TREND_WINDOW
-        insts = sorted(day.index)
-        feat = D.features(insts, [f"$close/Ref($close,{w})-1"],
-                          start_time=today, end_time=today, freq="day")
-        mom = feat.iloc[:, 0].droplevel("datetime").reindex(day.index)
-        penalty = float(np.nanmin(day.to_numpy())) - 1000.0
-        down = (mom <= 0).to_numpy(dtype=bool)
-        day.iloc[down] = penalty
-        print(f"趋势过滤：{int(down.sum())}/{len(day)} 只因过去{w}日动量<=0被降权")
+        down_df = trend_down_state(sorted(day.index), today, today)
+        if down_df.empty:
+            raise SystemExit(f"趋势过滤：{today} 无状态行（今日K线未生成？）")
+        down = down_df.iloc[-1].reindex(day.index).fillna(False).to_numpy(dtype=bool)
+        day.iloc[down] = day.iloc[down] - float(getattr(config, "TREND_PENALTY", 1000.0))
+        ws = list(getattr(config, "TREND_WINDOWS", [config.TREND_WINDOW]))
+        print(f"趋势过滤v2：{int(down.sum())}/{len(day)} 只判定下行被保序降权"
+              f"（窗口{ws} ≥{getattr(config, 'TREND_VOTE_MIN', 2)}票，债/金豁免）")
 
     # 保险：QDII 一律不参与（正常已被 dump 从 etf.txt 排除）
     qdii = [s for s in day.index if universe.get_asset_class(symbol_to_code(str(s))) == "qdii"]
@@ -216,34 +216,60 @@ def score_today(today: str) -> pd.Series:
 # --------------------------------------------------------------------------
 # 3) 判定：与持仓对比，按 TopkDropout 同款规则给出买卖清单
 # --------------------------------------------------------------------------
-def load_positions() -> list[str]:
+def load_positions() -> tuple[list[str], dict[str, str]]:
+    """读取持仓与每只的买入日期（旧格式无 buy_dates 时返回空表，视为持有已久）。"""
     f = config.POSITIONS_FILE
     if not f.exists():
-        return []
+        return [], {}
     try:
         obj = json.loads(f.read_text(encoding="utf-8"))
-        return [str(s) for s in obj.get("positions", [])]
+        pos = [str(s) for s in obj.get("positions", [])]
+        buy_dates = {str(k): str(v) for k, v in obj.get("buy_dates", {}).items()}
+        return pos, buy_dates
     except Exception:
-        return []
+        return [], {}
 
 
-def save_positions(symbols: list[str]) -> None:
+def save_positions(symbols: list[str], buy_dates: dict[str, str]) -> None:
     config.POSITIONS_FILE.write_text(json.dumps({
         "positions": sorted(symbols),
+        "buy_dates": {s: buy_dates[s] for s in symbols if s in buy_dates},
         "updated_at": pd.Timestamp.now().strftime("%Y-%m-%d %H:%M:%S"),
     }, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
+def held_trading_days(held: list[str], buy_dates: dict[str, str], today: str) -> dict[str, int]:
+    """每只持仓已持有的交易日数（买入日记第 1 天，与 qlib bar_count 口径一致）。
+    无买入日记录（旧持仓/手工录入）→ 不返回，视为持有已久（不拦截卖出）。"""
+    cal_file = config.QLIB_DATA_DIR / "calendars" / "day.txt"
+    cal = pd.read_csv(cal_file, header=None, names=["d"])["d"].astype(str).str[:10]
+    dates = cal[cal <= today]
+    idx = {d: i for i, d in enumerate(dates)}
+    out: dict[str, int] = {}
+    if today not in idx:
+        return out
+    for h in held:
+        bd = buy_dates.get(h)
+        if bd and bd in idx:
+            out[h] = idx[today] - idx[bd] + 1
+    return out
+
+
 def make_decision(held: list[str], score: pd.Series,
-                  topk: int, n_drop: int) -> tuple[list[str], list[str], list[str]]:
-    """返回 (买入, 卖出, 持有)。规则与回测 TopkDropoutStrategy 对齐：
+                  topk: int, n_drop: int,
+                  hold_days: dict[str, int] | None = None,
+                  hold_thresh: int = 1) -> tuple[list[str], list[str], list[str], list[str]]:
+    """返回 (买入, 卖出, 持有, 被持有期保护)。规则与回测 TopkDropoutStrategy 对齐：
 
     - 空仓：一次建仓打分最高的 TopK；
     - 有持仓：跌出 TopK 的持仓按打分从差到好最多卖 N_DROP 只，用最高分的
       未持仓标的补足到 TopK（控制换手）；
+    - 持有期滞回：卖出候选中持有未满 hold_thresh 个交易日的被拦截（名额作废不递补，
+      与 qlib hold_thresh 行为一致）；hold_days 无记录的持仓视为持有已久；
     - 持仓中的 QDII 一律建议清仓（不占 N_DROP 名额，策略性退出）；
     - 持仓当日无打分（停牌/被动态池剔除）：保持并提示人工处理。
     """
+    hold_days = hold_days or {}
     s = score.dropna()
     ranked = list(s.sort_values(ascending=False).index)
     rank_of = {sym: i + 1 for i, sym in enumerate(ranked)}
@@ -255,7 +281,7 @@ def make_decision(held: list[str], score: pd.Series,
 
     if not held:  # 空仓（或仅剩 QDII）：一次建仓
         buys = ranked[:topk]
-        return buys, forced_sells, []
+        return buys, forced_sells, [], []
 
     held_known = [h for h in held if h in rank_of]
     held_unknown = [h for h in held if h not in rank_of]  # 无打分：保持+人工确认
@@ -263,11 +289,13 @@ def make_decision(held: list[str], score: pd.Series,
     keep = [h for h in held_known if h in top]
     out = sorted((h for h in held_known if h not in top),
                  key=lambda x: rank_of[x], reverse=True)  # 排名最差的先卖
-    sells = out[:n_drop]
+    cands = out[:n_drop]
+    protected = [h for h in cands if hold_days.get(h, 10 ** 9) < hold_thresh]
+    sells = [h for h in cands if h not in protected]
     stay = keep + [h for h in out if h not in sells] + held_unknown
     n_buy = max(0, topk - len(stay))
     buys = [x for x in ranked if x not in set(held)][:n_buy]
-    return buys, forced_sells + sells, stay
+    return buys, forced_sells + sells, stay, protected
 
 
 # --------------------------------------------------------------------------
@@ -319,11 +347,15 @@ def main() -> None:
         dump_qlib.run_dump(store, data)
 
     # ---- 打分 + 买卖判定 ----
-    print("\n== 第4步：模型打分（Alpha158 + 趋势过滤）==")
+    print("\n== 第4步：模型打分（Alpha158 + 趋势过滤v2）==")
     score = score_today(today)
 
-    held = load_positions()
-    buys, sells, stays = make_decision(held, score, args.topk, config.N_DROP)
+    held, buy_dates = load_positions()
+    hold_days = held_trading_days(held, buy_dates, today)
+    hold_thresh = int(getattr(config, "HOLD_THRESH", 1))
+    buys, sells, stays, protected = make_decision(
+        held, score, args.topk, config.N_DROP,
+        hold_days=hold_days, hold_thresh=hold_thresh)
 
     # ---- 输出 ----
     names = load_names()
@@ -347,19 +379,26 @@ def main() -> None:
     out_file = config.OUTPUT_DIR / f"decision_{now:%Y%m%d}.csv"
     table.to_csv(out_file, index=False, encoding="utf-8-sig")
 
-    print(f"\n===== {today} {now:%H:%M} 盘中决策（Top{args.topk}，每日最多换 {config.N_DROP} 只，QDII 不参与）=====")
+    print(f"\n===== {today} {now:%H:%M} 盘中决策（Top{args.topk}，每日最多换 {config.N_DROP} 只，"
+          f"持有≥{hold_thresh}日才可换，QDII 不参与）=====")
     if held:
         print(f"当前持仓({len(held)})：{', '.join(held)}")
     else:
         print("当前持仓：空仓 → 按 TopK 一次建仓")
     print(table.to_string(index=False) if not table.empty else "（无操作）")
+    if protected:
+        detail = ", ".join(f"{h}(已持{hold_days.get(h, '?')}日)" for h in protected)
+        print(f"持有期保护：{detail} 排名已跌出 TopK，但未满 {hold_thresh} 个交易日，暂不卖。")
     if not buys and not sells:
         print("结论：今日无需买卖，继续持有。")
     print(f"\n清单已保存：{out_file}")
 
     if args.apply:
         new_pos = sorted(set(stays) | set(buys))
-        save_positions(new_pos)
+        new_buy_dates = {s: buy_dates[s] for s in stays if s in buy_dates}
+        for s in buys:
+            new_buy_dates[s] = today
+        save_positions(new_pos, new_buy_dates)
         print(f"已更新持仓文件：{config.POSITIONS_FILE}（{len(new_pos)} 只）")
     else:
         print("提示：确认按清单执行后，运行 python -m src.decide --no-refresh --apply 更新持仓；"
