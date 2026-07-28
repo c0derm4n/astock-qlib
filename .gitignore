@@ -13,5 +13,9 @@ mlruns/
 __pycache__/
 *.pyc
 
+# 前端
+frontend/node_modules/
+frontend/dist/
+
 # IDE / 工具元数据
 .qoder/
