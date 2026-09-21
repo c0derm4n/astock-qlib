@@ -1,8 +1,4 @@
-# 交易日 14:30 盘中决策：由 Windows 任务计划调用（也可手工运行）。
-# 注册任务计划（管理员或当前用户均可，周一到周五 14:30 触发；周末由脚本自行跳过）：
-#   schtasks /Create /TN "ETF轮动1430决策" /SC WEEKLY /D MON,TUE,WED,THU,FRI /ST 14:30 `
-#     /TR "pwsh -NoProfile -ExecutionPolicy Bypass -File e:\tcl_expert_llm\astock-qlib\run_decide_1430.ps1"
-# 取消：schtasks /Delete /TN "ETF轮动1430决策" /F
+# 旧入口仅保留迁移提示。已有任务计划请改到19:00并使用run_decide_1900.ps1。
 $ErrorActionPreference = "Stop"
 Set-Location -Path $PSScriptRoot
 
@@ -10,5 +6,6 @@ Set-Location -Path $PSScriptRoot
 # $env:TUSHARE_TOKEN = "你的token"
 
 $log = Join-Path $PSScriptRoot ("output\decide_{0:yyyyMMdd}.log" -f (Get-Date))
-& "$PSScriptRoot\.venv\Scripts\python.exe" -m src.decide *>&1 | Tee-Object -FilePath $log
+Write-Warning "旧14:30入口已停用；请将任务计划改为19:00调用run_decide_1900.ps1。"
+& "$PSScriptRoot\.venv\Scripts\python.exe" -m src.decide --paper *>&1 | Tee-Object -FilePath $log
 exit $LASTEXITCODE
