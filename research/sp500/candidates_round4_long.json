@@ -1,0 +1,18 @@
+{
+  "version": "exploration-4-long",
+  "registered_at": "2026-09-13",
+  "parent_run": "20260913-083541",
+  "selection_disclosure": "已研究23个不同规则候选。55%权益方案2021年以来达标，2016年以来不足；预设代理改善早期空仓但仍不足。第四轮检验较高权益风险预算，不降低规模/流动性过滤，不改基准或起止日。",
+  "hypothesis": "标普接近满仓权益；70%至80%权益加黄金缓冲，可能在相近风险量级下更接近其长期收益。纳指缺资格时由合格恒生ETF承接，否则现金。",
+  "start": "2016-01-04",
+  "end": "2026-09-11",
+  "comparison": {"max_cagr_shortfall": 0.02, "min_cumulative_ratio": 0.85},
+  "candidates": [
+    {"name": "global65_gold30", "family": "fixed", "weights": {"SH513100": 0.65, "SH518880": 0.3}, "fallbacks": {"SH513100": {"SZ159920": 1.0}}},
+    {"name": "global70_gold25", "family": "fixed", "weights": {"SH513100": 0.7, "SH518880": 0.25}, "fallbacks": {"SH513100": {"SZ159920": 1.0}}},
+    {"name": "global75_gold20", "family": "fixed", "weights": {"SH513100": 0.75, "SH518880": 0.2}, "fallbacks": {"SH513100": {"SZ159920": 1.0}}},
+    {"name": "global80_gold15", "family": "fixed", "weights": {"SH513100": 0.8, "SH518880": 0.15}, "fallbacks": {"SH513100": {"SZ159920": 1.0}}}
+  ],
+  "execution": {"rebalance": "fixed_targets_daily_band_and_eligibility_fallback", "max_weight": 0.85, "max_group_weight": 0.85, "max_equity_weight": 0.95, "max_gross_weight": 0.95, "vol_target": 0.25, "max_daily_turnover": 0.3, "rebalance_band": 0.03},
+  "risk_note": "研究风险预算由20%目标波动/60%单只上限改为25%/85%；不加杠杆。回撤同时与20%旧准入线及同区间标普实际回撤比较，不宣称通过旧准入。"
+}

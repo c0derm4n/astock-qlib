@@ -1,0 +1,15 @@
+{
+  "purpose": "对冻结30只池候选补做真实份额、应收分红与到账现金回放，不调整行业或权重",
+  "start": "2016-09-12",
+  "end": "2026-09-11",
+  "actions_source": "output/goal30/data_evidence/selected_candidate/results.json",
+  "cash_rule": "权益登记日收盘确认份额；除息日确认应收分红；支付日收盘转为现金，下一交易日才能使用",
+  "allocation_rule": "调仓权重与下单风险预算以现金加ETF市值为基准，不将尚未到账分红当作可投资现金；经济净值包含应收分红",
+  "split_rule": "使用两路资料一致的整数折算比例；价格生效日沿用新浪与冻结原价跳变日期。公司行动日取消该标的旧排队订单，收盘重算下一日订单",
+  "cases": [
+    {"name": "cash_base", "slippage_multiplier": 1.0, "payment_delay_sessions": 0},
+    {"name": "cash_slippage_2", "slippage_multiplier": 2.0, "payment_delay_sessions": 0},
+    {"name": "cash_payment_delay_5", "slippage_multiplier": 1.0, "payment_delay_sessions": 5}
+  ],
+  "limitations": "公开二手资料仍须发行人公告确认；本回放解决已取得3只标的的现金流建模，不代表30只完整历史目录或未来表现验收通过。"
+}

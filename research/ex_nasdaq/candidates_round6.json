@@ -1,0 +1,139 @@
+{
+  "version": "ex-nasdaq-round6",
+  "registered_at": "2026-09-13",
+  "source": "output/runs/20260912-220345-f20ea3f5",
+  "benchmark": "output/sp500_exploration/benchmarks/20260913-080721",
+  "starts": {
+    "long": "2016-01-05",
+    "recent": "2021-01-04"
+  },
+  "end": "2026-09-11",
+  "comparison": {
+    "max_cagr_shortfall": 0.02,
+    "min_cumulative_ratio": 0.85
+  },
+  "research_drawdown_budget": 0.3,
+  "hypothesis": "从排除纳指的30只ETF重新训练固定超参数Ridge和LightGBM季度滚动模型，只学习已成熟的20日标签；分别检验纯模型轮动与黄金核心分散。第一年历史不足时不虚构训练样本。",
+  "execution": {
+    "max_weight": 0.85,
+    "max_group_weight": 0.85,
+    "max_equity_weight": 0.95,
+    "max_gross_weight": 0.95,
+    "volatility_policy": "observe_only",
+    "vol_target": 0.25,
+    "max_daily_turnover": 0.3,
+    "rebalance_band": 0.03
+  },
+  "candidates": [
+    {
+      "name": "ridge_k3_M",
+      "family": "rotation",
+      "signal": "frozen_model",
+      "predictions": "output/sp500_ex_nasdaq/models/20260913-102417/ridge.parquet",
+      "topk": 3,
+      "absolute_filter": false,
+      "rebalance_frequency": "M",
+      "policy_overrides": {
+        "volatility_policy": "target",
+        "vol_target": 0.2
+      }
+    },
+    {
+      "name": "ridge_k5_M",
+      "family": "rotation",
+      "signal": "frozen_model",
+      "predictions": "output/sp500_ex_nasdaq/models/20260913-102417/ridge.parquet",
+      "topk": 5,
+      "absolute_filter": false,
+      "rebalance_frequency": "M",
+      "policy_overrides": {
+        "volatility_policy": "target",
+        "vol_target": 0.2
+      }
+    },
+    {
+      "name": "ridge_k3_W-FRI",
+      "family": "rotation",
+      "signal": "frozen_model",
+      "predictions": "output/sp500_ex_nasdaq/models/20260913-102417/ridge.parquet",
+      "topk": 3,
+      "absolute_filter": false,
+      "rebalance_frequency": "W-FRI",
+      "policy_overrides": {
+        "volatility_policy": "target",
+        "vol_target": 0.2
+      }
+    },
+    {
+      "name": "gold40_ridge_k3",
+      "family": "hybrid",
+      "weights": {
+        "SH518880": 0.4
+      },
+      "satellite_weight": 0.55,
+      "signal": "frozen_model",
+      "predictions": "output/sp500_ex_nasdaq/models/20260913-102417/ridge.parquet",
+      "topk": 3,
+      "absolute_filter": false,
+      "policy_overrides": {
+        "volatility_policy": "target",
+        "vol_target": 0.2
+      }
+    },
+    {
+      "name": "lightgbm_k3_M",
+      "family": "rotation",
+      "signal": "frozen_model",
+      "predictions": "output/sp500_ex_nasdaq/models/20260913-102417/lightgbm.parquet",
+      "topk": 3,
+      "absolute_filter": false,
+      "rebalance_frequency": "M",
+      "policy_overrides": {
+        "volatility_policy": "target",
+        "vol_target": 0.2
+      }
+    },
+    {
+      "name": "lightgbm_k5_M",
+      "family": "rotation",
+      "signal": "frozen_model",
+      "predictions": "output/sp500_ex_nasdaq/models/20260913-102417/lightgbm.parquet",
+      "topk": 5,
+      "absolute_filter": false,
+      "rebalance_frequency": "M",
+      "policy_overrides": {
+        "volatility_policy": "target",
+        "vol_target": 0.2
+      }
+    },
+    {
+      "name": "lightgbm_k3_W-FRI",
+      "family": "rotation",
+      "signal": "frozen_model",
+      "predictions": "output/sp500_ex_nasdaq/models/20260913-102417/lightgbm.parquet",
+      "topk": 3,
+      "absolute_filter": false,
+      "rebalance_frequency": "W-FRI",
+      "policy_overrides": {
+        "volatility_policy": "target",
+        "vol_target": 0.2
+      }
+    },
+    {
+      "name": "gold40_lightgbm_k3",
+      "family": "hybrid",
+      "weights": {
+        "SH518880": 0.4
+      },
+      "satellite_weight": 0.55,
+      "signal": "frozen_model",
+      "predictions": "output/sp500_ex_nasdaq/models/20260913-102417/lightgbm.parquet",
+      "topk": 3,
+      "absolute_filter": false,
+      "policy_overrides": {
+        "volatility_policy": "target",
+        "vol_target": 0.2
+      }
+    }
+  ]
+}

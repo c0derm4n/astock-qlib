@@ -1,0 +1,101 @@
+{
+  "version": "sp500-candidate-3",
+  "research_only": true,
+  "historical_goal_verified": true,
+  "candidate": {
+    "name": "fixed_risk_observe",
+    "family": "fixed",
+    "weights": {
+      "SH513100": 0.65,
+      "SH518880": 0.3
+    },
+    "fallbacks": {
+      "SH513100": {
+        "SZ159920": 1.0
+      }
+    },
+    "policy_overrides": {
+      "volatility_policy": "observe_only"
+    }
+  },
+  "policy": {
+    "initial_capital": 1000000.0,
+    "max_weight": 0.85,
+    "max_group_weight": 0.85,
+    "max_equity_weight": 0.95,
+    "max_gross_weight": 0.95,
+    "vol_target": 0.25,
+    "volatility_policy": "observe_only",
+    "covariance_days": 60,
+    "max_daily_turnover": 0.3,
+    "max_adv_participation": 0.02,
+    "commission": 0.0003,
+    "minimum_commission": 0.2,
+    "slippage": 0.0005,
+    "impact_coefficient": 0.002,
+    "rebalance_band": 0.03,
+    "annualization_days": 252,
+    "conservative_buy_budget": true
+  },
+  "start": "2016-01-04",
+  "end": "2026-09-11",
+  "comparison": {
+    "max_cagr_shortfall": 0.02,
+    "min_cumulative_ratio": 0.85
+  },
+  "source_directory": "output/runs/20260912-220345-f20ea3f5",
+  "benchmark_directory": "output/sp500_exploration/benchmarks/20260913-080721",
+  "validation_directory": "output/sp500_exploration/validation/20260913-090253",
+  "required_hashes": {
+    "config.py": "be1734f7dbc42ed5cf81e41ec9bb534bdbaf902bf9d6f77f180d93dacba21c1b",
+    "universe.py": "04b37ba29b4b0256f29c95fe0904c35d583afd28d20beb24a5663f09cb2d5019",
+    "backend/artifacts.py": "d46b0eaa3e98a07f04dde208a8b5b26dd750ad2e390964b7d5eeeb64d06935aa",
+    "src/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "src/account.py": "d0f471fdb812abfedf3660c41974f446c90ab7112adb81cb1045d52c347a95c4",
+    "src/catalog.py": "0583412b47507aa2a6f0f6b698f53922c0e2c208132cee0d9eff932ae65fcec3",
+    "src/data_report.py": "876f4262bceaf329c7a05eae1e852218993c3957276b418f86278b25f943fede",
+    "src/datasource/__init__.py": "6206955217793c1aa9cf5bc55a1387d53980871665f650b5858eeb2a895f5f74",
+    "src/datasource/akshare_source.py": "827f0d4df3a0b9ae40187a0cebb088fcb1cd8e89b53b45a63dfa9f4e9f9c67dc",
+    "src/datasource/base.py": "af0d3a52752e5c02f24aaab0e38fe178b89c1fbe9b58392e86f8ebdfc893051c",
+    "src/datasource/free_source.py": "991bdeb405515aefba4c615847edf0fee113a15d3250bbe242654666800b6e81",
+    "src/datasource/store.py": "9f31a11269c2e882563b9c4b2c71b2e8bf6c3d2b4557ebf96d8495fce1645665",
+    "src/datasource/tushare_source.py": "d80ca46882e5cfdb4220ea0104204d4b300a5f64484d73d803973b99c7e5ec70",
+    "src/decide.py": "e6c0f42791d8d04b9dcb2b606e6b40bcfa5add87ca960b53c7b9ad265f3af671",
+    "src/dump_qlib.py": "81a067cc60330443d84c01885220173da20a7159d57b782ef16cbb1d1ed500dd",
+    "src/fetch_data.py": "1cfd2f4a40c0fd3fc5752b35514ec288d82db4a60751a3603da770dd83b85bd7",
+    "src/forward.py": "494f0bfa056fe7dcac5962a04935ceefb1dc6bc67a815c8d7c3c1415a490aab7",
+    "src/free_data.py": "c99554d02e6f8a1643dcbf0f51275e07c6a58d36a63ef825533684956d6e7ad7",
+    "src/market.py": "d0454ca1a384a2e82f0988a8083ca46b984812039ecc2c3a2e7c4b6d9cea4a5e",
+    "src/models.py": "6d250723bf1eb438820b0ecc666e089a99a593c25aab0a3466d53e7323feeba9",
+    "src/overlay.py": "2eaf0d393430fe3ac9fa93d1b9d261ed9e837e52e11f6d7be9c1f866805ccb8a",
+    "src/plot_compare.py": "e09683dfd631c985dcb20a5c9ab81acfd7e11cbb970a874a7cec273a5e746057",
+    "src/plot_results.py": "6cf4f062586d779e87947629d2e7c61ed4127685ed8fdf825b10dc68ec577f5d",
+    "src/plot_yearly.py": "961bd4621a0f4d70d49a24fc2730fdaf543a4f4bc39842ce07b6d2fe1a8c500c",
+    "src/portfolio.py": "50ab1ca967a27afdfb3eb3d53aafb14e2e033389a48944fd7269c71abf39cf2a",
+    "src/predict.py": "9db35a12fb4acb50d99df4ed1a5a62a5129417796f72d5fd568558b0e0c916b1",
+    "src/research.py": "a73a47695416acda5749777102561fef2fa65c6fe865ef091a1562fe8bcf4e39",
+    "src/runs.py": "408b6d651da39f176c825f131068a87b31db246e1e52e86c071ddac7f8d59474",
+    "src/simulation.py": "4d8c179adcca8c278fc563e2ecadd67564be50d328a2caf7480eabe7fd525158",
+    "src/stress.py": "5188d83e3bef8743bc02f5cba9439d53f3fdc9dcf574fae89f970827085058e3",
+    "src/temporal.py": "6b052992b970b88e5cb8c1c84a8948c8d2de5e1ff3adf9ee77d7f0bac8f1b3dd",
+    "src/train.py": "407f933a10e7b65b79a72723a35333f0bf195aed6a5e51e9b6519b9a9b881b7a",
+    "src/train_long.py": "e6c137f866359dd7bbe86e696aa19a3eccb7dc582b87309ab5f2e0520788349a",
+    "src/turnover.py": "9c396cd08048f7ca5cf975fd72efd47807c255ec32b9cbd0e41ba433ba273686",
+    "src/turnover_grid.py": "f5f239563eeeeabdabef01eb53e61af982a52c6557d2928375dadaab25fc0a5b",
+    "src/universe_filter.py": "300deaae5fa07d167e846c390ad9ec8580fa8ad8273f910f0b4a32cd6c356cb9",
+    "src/utils.py": "9c9aab80e9a2f1dac4fe0cbef71391cf5b094fc574872bd8cebd63f8731a2033",
+    "output/runs/20260912-220345-f20ea3f5/market_snapshot.parquet": "f5f3f5b61f7aab992a62e1d1230b1e55d24bdaf6f603e41c99015b922ff6c057",
+    "output/runs/20260912-220345-f20ea3f5/nav_snapshot.parquet": "1fa5c2e9ee167656fc205cf8537e1de4072d8a1a6345d4de5ed773ad5bba2836",
+    "output/runs/20260912-220345-f20ea3f5/metadata_snapshot.parquet": "29f3dc8abdbd0818873c48566703129abda44b062ee064141bd704dde32af42f",
+    "research/sp500/benchmark.py": "6259b414c4eedc25cfa2ab462802af1bee377a5471611205bd22fdb989585c87",
+    "research/sp500/explore.py": "c13662c570e96e871d74c08a5322bd44f7676ec94fe555e433c9957164df401d",
+    "research/sp500/replay.py": "2101035033ce8aba21b51057611aa01311a732602e5b3c81d5fe9f26dcaa860c",
+    "research/sp500/report.py": "b9c5bb66c508de22dac5a941e076c39191494554018cfa986e123cc084a07f49",
+    "research/sp500/validate.py": "d712e197f1ee882ec6c69efc93183fca8042997c800f39515ae31b18644c4713",
+    "research/sp500/__init__.py": "ee83f08b493f4b8a047069758ff047c1a7fc9f590b7e4d5eb99aec987f941a5d",
+    "output/sp500_exploration/benchmarks/20260913-080721/sp500_price.csv": "8b2cad9817d54712c767e804e3734217fac3c2bfea4853b102bd5189ca70eb97",
+    "output/sp500_exploration/benchmarks/20260913-080721/spy.csv": "bce0d7f084a6659a488ad401af3fcd0c5f05b308cc3e89aaeb7e75dcc2aca79f",
+    "output/sp500_exploration/benchmarks/20260913-080721/spy_dividends.csv": "acde18783a8ab0598defb2667dd1097b43eff0104e305573c5ca78df79a0d7a1",
+    "output/sp500_exploration/benchmarks/20260913-080721/usdcny.csv": "ea85a8ac8389c4b5bb5e5a6231180cea507eba858b77a8224777d6c029fd2c3b"
+  }
+}

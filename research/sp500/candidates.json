@@ -1,0 +1,25 @@
+{
+  "version": "exploration-1",
+  "registered_at": "2026-09-13",
+  "selection_disclosure": "当前31只ETF的2021年以来买入持有收益已经查看；以下资产类别假设属于历史开发，不是独立样本外发现。第一轮登记12个候选，不修改生产协议。",
+  "hypothesis": "以唯一美股场内ETF获得美国成长股暴露，配合黄金、债券与国内轮动分散风险；多周期动量用于在资产类别间识别持续趋势。全部采用场内实际价格和次日成交。",
+  "start": "2021-01-04",
+  "end": "2026-09-11",
+  "comparison": {"max_cagr_shortfall": 0.02, "min_cumulative_ratio": 0.85},
+  "candidates": [
+    {"name": "existing_v211", "family": "existing"},
+    {"name": "global_balanced", "family": "fixed", "weights": {"SH513100": 0.35, "SH518880": 0.25, "SH510300": 0.2, "SH511260": 0.15}},
+    {"name": "global_growth", "family": "fixed", "weights": {"SH513100": 0.5, "SH518880": 0.25, "SH510300": 0.1, "SH511260": 0.1}},
+    {"name": "global_growth_gold", "family": "fixed", "weights": {"SH513100": 0.5, "SH518880": 0.3, "SH510300": 0.15}},
+    {"name": "global_china_rotation", "family": "hybrid", "weights": {"SH513100": 0.4, "SH518880": 0.2, "SH511260": 0.1}, "satellite_weight": 0.25, "topk": 3, "lookbacks": [20, 60, 120], "signal": "momentum"},
+    {"name": "global_china_model", "family": "hybrid", "weights": {"SH513100": 0.4, "SH518880": 0.2, "SH511260": 0.1}, "satellite_weight": 0.25, "topk": 3, "signal": "lightgbm"},
+    {"name": "dual_momentum_3", "family": "rotation", "topk": 3, "lookbacks": [20, 60, 120], "signal": "momentum", "absolute_filter": true},
+    {"name": "dual_momentum_5", "family": "rotation", "topk": 5, "lookbacks": [20, 60, 120], "signal": "momentum", "absolute_filter": true},
+    {"name": "long_momentum_3", "family": "rotation", "topk": 3, "lookbacks": [60, 120, 240], "signal": "momentum", "absolute_filter": true},
+    {"name": "risk_momentum_3", "family": "rotation", "topk": 3, "lookbacks": [20, 60, 120], "signal": "risk_momentum", "absolute_filter": true},
+    {"name": "risk_momentum_5", "family": "rotation", "topk": 5, "lookbacks": [20, 60, 120], "signal": "risk_momentum", "absolute_filter": true},
+    {"name": "china_model_growth", "family": "hybrid", "weights": {"SH513100": 0.25, "SH518880": 0.2}, "satellite_weight": 0.5, "topk": 5, "signal": "lightgbm"}
+  ],
+  "execution": {"rebalance": "month_end_signal_with_daily_risk_controls", "max_weight": 0.6, "max_group_weight": 0.7, "max_equity_weight": 0.95, "max_gross_weight": 0.95, "vol_target": 0.2, "max_daily_turnover": 0.3, "rebalance_band": 0.03},
+  "risk_note": "探索分支允许单只60%和20%目标波动，分别披露与原20%单只/15%目标波动的差异；没有杠杆。回撤仍报告原20%准入线与同期标普回撤，不自动批准投资。"
+}

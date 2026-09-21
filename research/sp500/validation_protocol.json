@@ -1,0 +1,21 @@
+{
+  "version": "validation-1",
+  "registered_at": "2026-09-13",
+  "exploration_run": "20260913-081152",
+  "primary_candidate": "growth55_gold35_bond5",
+  "selection_reason": "第二轮8个候选中7个达到预先定义的收益接近标准。选择55%纳指/35%黄金/5%国债：规则简单、避开60%单只上限、保留国债/现金缓冲；没有选择最高收益点。仍是20个已查看历史开发候选中的选择。",
+  "capital": 1000000,
+  "stress": [
+    {"name": "slippage_2", "kwargs": {"slippage_multiplier": 2}},
+    {"name": "slippage_3", "kwargs": {"slippage_multiplier": 3}},
+    {"name": "capital_10", "kwargs": {"capital_multiplier": 10}},
+    {"name": "capital_100", "kwargs": {"capital_multiplier": 100}},
+    {"name": "partial_50", "kwargs": {"fill_fraction": 0.5}},
+    {"name": "delay_2", "kwargs": {"delay": 2}}
+  ],
+  "weight_neighborhood": {"nasdaq": [0.5, 0.55, 0.6], "gold": [0.25, 0.3, 0.35], "bond": "0.95-nasdaq-gold", "cash": 0.05},
+  "additional_tests": ["vol_target_15", "vol_target_25", "band_0.02", "band_0.05", "split_ratio_5.0", "commission_min_5", "sample_2016_onward", "sample_2016_2020"],
+  "checks": {"base_historical_target_required": true, "execution_stress_positive_and_drawdown_20": true, "neighborhood_at_least_two_thirds_target_and_drawdown_20": true, "negative_results_retained": true},
+  "execution_audit": ["cash_and_units_reconcile_each_day", "signal_before_fill", "eligibility_on_signal_date", "buy_lots_integer", "adv_participation_cap", "no_future_price_dependence", "frozen_source_and_production_pointer_unchanged"],
+  "note": "时间分段、滚动窗口、费用和权重邻域仅用于诊断已研究历史；不会把2016–2020包装为全新盲测，不改变原投资准入门禁。"
+}

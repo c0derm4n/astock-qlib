@@ -1,0 +1,35 @@
+{
+  "version": "goal30-turnover-budget-1",
+  "purpose": "修复已核实的日双边换手硬上限缺口，复测原固定候选及全部三种动态配置，不改变它们的信号或窗口参数",
+  "previous_dynamic_archive": "output/goal30/relative_allocation/20260913-230004-3f071754",
+  "start": "2016-09-12",
+  "end": "2026-09-11",
+  "primary": "fixed_control",
+  "variants": [
+    {"name": "fixed_control", "method": "fixed"},
+    {"name": "proportional_strength", "method": "proportional"},
+    {"name": "horizon_votes", "method": "votes"},
+    {"name": "equal_positive", "method": "equal"}
+  ],
+  "scenarios": [
+    {"name": "base", "slippage_multiplier": 1.0, "payment_delay_sessions": 0},
+    {"name": "slippage_2", "slippage_multiplier": 2.0, "payment_delay_sessions": 0},
+    {"name": "payment_delay_5", "slippage_multiplier": 1.0, "payment_delay_sessions": 5}
+  ],
+  "execution_rules": {
+    "shared_budget": "每个执行日以前一日含应收的经济净值乘30%固定预算；所有买卖共享，卖出优先及同方向代码排序沿用原执行顺序",
+    "charge": "每笔实际成交按数量乘max(开盘价,含滑点成交价)消耗预算，从而原开盘名义额和实际成交额两个口径均不超过30%；佣金单独从现金扣减",
+    "quantity": "按当日实际开盘价及数量对应的冲击报价，通过整手二分查找最大可成交数量；不足一手的最终整笔清仓余量也须满足同一预算",
+    "reprice": "现金或集中度削减数量后，按最终实际成交量重新计算参与率、冲击和成交价，不沿用更大订单的报价",
+    "lifecycle": "仅实际成交扣预算，停牌、缺价、价格限制、公司行动撤单不扣；每天独立重置，未完成退出由原清仓状态继续处理",
+    "cash": "保留现金、集中度、2%ADV参与率、保守买入预算；应收分红可计入经济净值，但不当作可用现金",
+    "unchanged": "固定30只池、候选资产、所有动量窗口、原成本系数及公司行动时点保持；旧引擎和旧归档不修改"
+  },
+  "evaluation": {
+    "cases": 12,
+    "hard_constraints": "每个交易日实际成交额及原开盘名义额均不超过前日净值30%，现金/持仓/应收可独立重建",
+    "investment_target": "CAGR不低于人民币SPY含分红，逐日平均回撤不高于SPY；另保留原20%最大回撤门槛",
+    "status": "执行修复影响验证；历史已看，不是独立样本外；不把约束测试通过当成投资目标通过",
+    "promotion": "不自动替换每日或正式策略；完整数据审计、账户、每日应收衔接和真实前瞻仍另行验收"
+  }
+}

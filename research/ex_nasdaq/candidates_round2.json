@@ -1,0 +1,197 @@
+{
+  "version": "ex-nasdaq-round2",
+  "registered_at": "2026-09-13",
+  "source": "output/runs/20260912-220345-f20ea3f5",
+  "benchmark": "output/sp500_exploration/benchmarks/20260913-080721",
+  "starts": {
+    "long": "2016-01-05",
+    "recent": "2021-01-04"
+  },
+  "end": "2026-09-11",
+  "comparison": {
+    "max_cagr_shortfall": 0.02,
+    "min_cumulative_ratio": 0.85
+  },
+  "research_drawdown_budget": 0.3,
+  "hypothesis": "第一轮月度动量回撤较大，改用每日或每周信号及时处理趋势反转；OLS对数斜率乘R平方检验趋势平滑性，保留月度失败结果。全部为开发候选。",
+  "execution": {
+    "max_weight": 0.85,
+    "max_group_weight": 0.85,
+    "max_equity_weight": 0.95,
+    "max_gross_weight": 0.95,
+    "volatility_policy": "observe_only",
+    "vol_target": 0.25,
+    "max_daily_turnover": 0.3,
+    "rebalance_band": 0.03
+  },
+  "candidates": [
+    {
+      "name": "regression20_k1_D",
+      "family": "rotation",
+      "lookbacks": [
+        20
+      ],
+      "signal": "regression_trend",
+      "topk": 1,
+      "absolute_filter": true,
+      "rebalance_frequency": "D"
+    },
+    {
+      "name": "regression20_k3_D",
+      "family": "rotation",
+      "lookbacks": [
+        20
+      ],
+      "signal": "regression_trend",
+      "topk": 3,
+      "absolute_filter": true,
+      "rebalance_frequency": "D"
+    },
+    {
+      "name": "regression60_k1_D",
+      "family": "rotation",
+      "lookbacks": [
+        60
+      ],
+      "signal": "regression_trend",
+      "topk": 1,
+      "absolute_filter": true,
+      "rebalance_frequency": "D"
+    },
+    {
+      "name": "regression60_k3_D",
+      "family": "rotation",
+      "lookbacks": [
+        60
+      ],
+      "signal": "regression_trend",
+      "topk": 3,
+      "absolute_filter": true,
+      "rebalance_frequency": "D"
+    },
+    {
+      "name": "regression20_k1_W-FRI",
+      "family": "rotation",
+      "lookbacks": [
+        20
+      ],
+      "signal": "regression_trend",
+      "topk": 1,
+      "absolute_filter": true,
+      "rebalance_frequency": "W-FRI"
+    },
+    {
+      "name": "regression60_k1_W-FRI",
+      "family": "rotation",
+      "lookbacks": [
+        60
+      ],
+      "signal": "regression_trend",
+      "topk": 1,
+      "absolute_filter": true,
+      "rebalance_frequency": "W-FRI"
+    },
+    {
+      "name": "momentum20_k1_daily",
+      "family": "rotation",
+      "lookbacks": [
+        20
+      ],
+      "signal": "momentum",
+      "topk": 1,
+      "absolute_filter": true,
+      "rebalance_frequency": "D"
+    },
+    {
+      "name": "momentum20_k3_daily",
+      "family": "rotation",
+      "lookbacks": [
+        20
+      ],
+      "signal": "momentum",
+      "topk": 3,
+      "absolute_filter": true,
+      "rebalance_frequency": "D"
+    },
+    {
+      "name": "momentum60_k1_daily",
+      "family": "rotation",
+      "lookbacks": [
+        60
+      ],
+      "signal": "momentum",
+      "topk": 1,
+      "absolute_filter": true,
+      "rebalance_frequency": "D"
+    },
+    {
+      "name": "momentum60_k3_daily",
+      "family": "rotation",
+      "lookbacks": [
+        60
+      ],
+      "signal": "momentum",
+      "topk": 3,
+      "absolute_filter": true,
+      "rebalance_frequency": "D"
+    },
+    {
+      "name": "risk_long_k2_weekly",
+      "family": "rotation",
+      "lookbacks": [
+        60,
+        120,
+        240
+      ],
+      "signal": "risk_momentum",
+      "topk": 2,
+      "absolute_filter": true,
+      "rebalance_frequency": "W-FRI"
+    },
+    {
+      "name": "gold40_regression20_k2_daily",
+      "family": "hybrid",
+      "weights": {
+        "SH518880": 0.4
+      },
+      "satellite_weight": 0.55,
+      "lookbacks": [
+        20
+      ],
+      "signal": "regression_trend",
+      "topk": 2,
+      "absolute_filter": true,
+      "rebalance_frequency": "D"
+    },
+    {
+      "name": "regression20_k1_daily_vol20",
+      "family": "rotation",
+      "lookbacks": [
+        20
+      ],
+      "signal": "regression_trend",
+      "topk": 1,
+      "absolute_filter": true,
+      "rebalance_frequency": "D",
+      "policy_overrides": {
+        "volatility_policy": "target",
+        "vol_target": 0.2
+      }
+    },
+    {
+      "name": "momentum20_k1_daily_vol20",
+      "family": "rotation",
+      "lookbacks": [
+        20
+      ],
+      "signal": "momentum",
+      "topk": 1,
+      "absolute_filter": true,
+      "rebalance_frequency": "D",
+      "policy_overrides": {
+        "volatility_policy": "target",
+        "vol_target": 0.2
+      }
+    }
+  ]
+}

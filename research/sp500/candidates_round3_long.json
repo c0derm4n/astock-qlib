@@ -1,0 +1,69 @@
+{
+  "version": "exploration-3-long",
+  "registered_at": "2026-09-13",
+  "parent_validation": "20260913-081841",
+  "selection_disclosure": "前20个候选已研究；主区间近标普，但2016年以来不达标。诊断发现纳指ETF2016年规模不足2亿元、早期成交额不足5000万元，长期目标缺位。第三轮保留原过滤门槛，检验资格缺位的预设代理，不按同期历史收益实时选择代理。",
+  "hypothesis": "海外成长核心因规模/流动性不合格时，用池内合格的海外权益或本地宽基代理承接，能降低长期空仓拖累；恢复资格后按原目标及现金约束逐步切回。",
+  "start": "2016-01-04",
+  "end": "2026-09-11",
+  "comparison": {
+    "max_cagr_shortfall": 0.02,
+    "min_cumulative_ratio": 0.85
+  },
+  "candidates": [
+    {
+      "name": "fallback_hangseng",
+      "family": "fixed",
+      "weights": {
+        "SH513100": 0.55,
+        "SH518880": 0.35,
+        "SH511260": 0.05
+      },
+      "fallbacks": {
+        "SH513100": {
+          "SZ159920": 1.0
+        }
+      }
+    },
+    {
+      "name": "fallback_csi300",
+      "family": "fixed",
+      "weights": {
+        "SH513100": 0.55,
+        "SH518880": 0.35,
+        "SH511260": 0.05
+      },
+      "fallbacks": {
+        "SH513100": {
+          "SH510300": 1.0
+        }
+      }
+    },
+    {
+      "name": "fallback_split",
+      "family": "fixed",
+      "weights": {
+        "SH513100": 0.55,
+        "SH518880": 0.35,
+        "SH511260": 0.05
+      },
+      "fallbacks": {
+        "SH513100": {
+          "SZ159920": 0.5,
+          "SH510300": 0.5
+        }
+      }
+    }
+  ],
+  "execution": {
+    "rebalance": "fixed_targets_daily_band_and_eligibility_fallback",
+    "max_weight": 0.6,
+    "max_group_weight": 0.7,
+    "max_equity_weight": 0.95,
+    "max_gross_weight": 0.95,
+    "vol_target": 0.2,
+    "max_daily_turnover": 0.3,
+    "rebalance_band": 0.03
+  },
+  "risk_note": "替代ETF不复制美国市场；未降低规模、流动性、上市或成交参与率门槛。不自动切换生产策略。"
+}

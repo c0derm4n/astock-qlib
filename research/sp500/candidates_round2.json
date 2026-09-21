@@ -1,0 +1,22 @@
+{
+  "version": "exploration-2",
+  "registered_at": "2026-09-13",
+  "parent_run": "20260913-080733",
+  "selection_disclosure": "第一轮12个候选均未达到人民币SPY全收益标准。简单追涨轮动回撤超过30%；固定跨资产与模型卫星收益接近但不足。第二轮提高全球成长/黄金暴露，检验降低低收益固定袖套拖累的假设。全部属于已查看历史上的开发搜索。",
+  "hypothesis": "美股成长与黄金的长期不同风险来源可能比31只中高相关行业轮动更适合作为核心；较小的国内模型卫星可保留本地轮动机会。",
+  "start": "2021-01-04",
+  "end": "2026-09-11",
+  "comparison": {"max_cagr_shortfall": 0.02, "min_cumulative_ratio": 0.85},
+  "candidates": [
+    {"name": "growth60_gold35", "family": "fixed", "weights": {"SH513100": 0.6, "SH518880": 0.35}},
+    {"name": "growth55_gold35_bond5", "family": "fixed", "weights": {"SH513100": 0.55, "SH518880": 0.35, "SH511260": 0.05}},
+    {"name": "growth60_gold25_bond10", "family": "fixed", "weights": {"SH513100": 0.6, "SH518880": 0.25, "SH511260": 0.1}},
+    {"name": "growth50_gold35_bond10", "family": "fixed", "weights": {"SH513100": 0.5, "SH518880": 0.35, "SH511260": 0.1}},
+    {"name": "growth50_gold35_model10", "family": "hybrid", "weights": {"SH513100": 0.5, "SH518880": 0.35}, "satellite_weight": 0.1, "topk": 3, "signal": "lightgbm"},
+    {"name": "growth50_gold25_model20", "family": "hybrid", "weights": {"SH513100": 0.5, "SH518880": 0.25}, "satellite_weight": 0.2, "topk": 3, "signal": "lightgbm"},
+    {"name": "growth40_gold30_model25", "family": "hybrid", "weights": {"SH513100": 0.4, "SH518880": 0.3}, "satellite_weight": 0.25, "topk": 3, "signal": "lightgbm"},
+    {"name": "growth55_gold25_midcap15", "family": "fixed", "weights": {"SH513100": 0.55, "SH518880": 0.25, "SH510500": 0.15}}
+  ],
+  "execution": {"rebalance": "month_end_selection_daily_band_maintenance_and_risk_controls", "max_weight": 0.6, "max_group_weight": 0.7, "max_equity_weight": 0.95, "max_gross_weight": 0.95, "vol_target": 0.2, "max_daily_turnover": 0.3, "rebalance_band": 0.03},
+  "risk_note": "相同风险/费用/资格规则；95%仓位上限，单只上限60%，无杠杆。原正式组合准入与账户不变。"
+}

@@ -1,0 +1,18 @@
+{
+  "version": "exploration-5-long",
+  "registered_at": "2026-09-13",
+  "parent_validation": "20260913-084517",
+  "selection_disclosure": "前27个候选后，65%权益候选两个主区间收益达标，但仅3/5权重邻域达标，未达到冻结的2/3稳健性要求；执行压力的收益差异也较大。第五轮改变交易维护机制，不继续挑选权重。",
+  "hypothesis": "固定配置在有限调仓窗口完成建仓和再平衡，其余日期仅做资格退出与风险缩减，可减少连续权重维护对费用、部分成交和整数份额路径的敏感性。",
+  "start": "2016-01-04",
+  "end": "2026-09-11",
+  "comparison": {"max_cagr_shortfall": 0.02, "min_cumulative_ratio": 0.85},
+  "candidates": [
+    {"name": "monthly_window5", "family": "fixed", "weights": {"SH513100": 0.65, "SH518880": 0.3}, "fallbacks": {"SH513100": {"SZ159920": 1.0}}, "rebalance_frequency": "M", "execution_window": 5},
+    {"name": "monthly_window3", "family": "fixed", "weights": {"SH513100": 0.65, "SH518880": 0.3}, "fallbacks": {"SH513100": {"SZ159920": 1.0}}, "rebalance_frequency": "M", "execution_window": 3},
+    {"name": "quarterly_window5", "family": "fixed", "weights": {"SH513100": 0.65, "SH518880": 0.3}, "fallbacks": {"SH513100": {"SZ159920": 1.0}}, "rebalance_frequency": "Q", "execution_window": 5},
+    {"name": "weekly_window2", "family": "fixed", "weights": {"SH513100": 0.65, "SH518880": 0.3}, "fallbacks": {"SH513100": {"SZ159920": 1.0}}, "rebalance_frequency": "W-FRI", "execution_window": 2}
+  ],
+  "execution": {"rebalance": "calendar_window_with_daily_risk_reductions", "max_weight": 0.85, "max_group_weight": 0.85, "max_equity_weight": 0.95, "max_gross_weight": 0.95, "vol_target": 0.25, "max_daily_turnover": 0.3, "rebalance_band": 0.03},
+  "risk_note": "与第四轮相同风险和资格预算；窗口外不为补足目标仓位机械买入，仍退出不合格或退出中的持仓。缺口可保持现金直到下次窗口。"
+}

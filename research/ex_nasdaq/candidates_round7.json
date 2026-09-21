@@ -1,0 +1,323 @@
+{
+  "version": "ex-nasdaq-round7",
+  "registered_at": "2026-09-13",
+  "source": "output/runs/20260912-220345-f20ea3f5",
+  "benchmark": "output/sp500_exploration/benchmarks/20260913-080721",
+  "starts": {
+    "long": "2016-01-05",
+    "recent": "2021-01-04"
+  },
+  "end": "2026-09-11",
+  "comparison": {
+    "max_cagr_shortfall": 0.02,
+    "min_cumulative_ratio": 0.85
+  },
+  "research_drawdown_budget": 0.3,
+  "hypothesis": "加入国内行业固定配置的全覆盖对照：对原池21个行业/成长标的（含创业板和科创50）逐一检验65%行业、30%黄金、5%现金；行业尚不合格时以合格沪深300承接，否则现金。此轮明确属于已看历史后的行业选择检验，所有行业结果保留，不仅展示历史赢家。",
+  "execution": {
+    "max_weight": 0.85,
+    "max_group_weight": 0.85,
+    "max_equity_weight": 0.95,
+    "max_gross_weight": 0.95,
+    "volatility_policy": "observe_only",
+    "vol_target": 0.25,
+    "max_daily_turnover": 0.3,
+    "rebalance_band": 0.03
+  },
+  "candidates": [
+    {
+      "name": "industry_159915_gold30",
+      "family": "fixed",
+      "weights": {
+        "SZ159915": 0.65,
+        "SH518880": 0.3
+      },
+      "fallbacks": {
+        "SZ159915": {
+          "SH510300": 1.0
+        }
+      },
+      "description": "创业板ETF"
+    },
+    {
+      "name": "industry_588000_gold30",
+      "family": "fixed",
+      "weights": {
+        "SH588000": 0.65,
+        "SH518880": 0.3
+      },
+      "fallbacks": {
+        "SH588000": {
+          "SH510300": 1.0
+        }
+      },
+      "description": "科创50ETF"
+    },
+    {
+      "name": "industry_512880_gold30",
+      "family": "fixed",
+      "weights": {
+        "SH512880": 0.65,
+        "SH518880": 0.3
+      },
+      "fallbacks": {
+        "SH512880": {
+          "SH510300": 1.0
+        }
+      },
+      "description": "证券ETF"
+    },
+    {
+      "name": "industry_512800_gold30",
+      "family": "fixed",
+      "weights": {
+        "SH512800": 0.65,
+        "SH518880": 0.3
+      },
+      "fallbacks": {
+        "SH512800": {
+          "SH510300": 1.0
+        }
+      },
+      "description": "银行ETF"
+    },
+    {
+      "name": "industry_512010_gold30",
+      "family": "fixed",
+      "weights": {
+        "SH512010": 0.65,
+        "SH518880": 0.3
+      },
+      "fallbacks": {
+        "SH512010": {
+          "SH510300": 1.0
+        }
+      },
+      "description": "医药ETF"
+    },
+    {
+      "name": "industry_512170_gold30",
+      "family": "fixed",
+      "weights": {
+        "SH512170": 0.65,
+        "SH518880": 0.3
+      },
+      "fallbacks": {
+        "SH512170": {
+          "SH510300": 1.0
+        }
+      },
+      "description": "医疗ETF"
+    },
+    {
+      "name": "industry_159928_gold30",
+      "family": "fixed",
+      "weights": {
+        "SZ159928": 0.65,
+        "SH518880": 0.3
+      },
+      "fallbacks": {
+        "SZ159928": {
+          "SH510300": 1.0
+        }
+      },
+      "description": "消费ETF"
+    },
+    {
+      "name": "industry_512690_gold30",
+      "family": "fixed",
+      "weights": {
+        "SH512690": 0.65,
+        "SH518880": 0.3
+      },
+      "fallbacks": {
+        "SH512690": {
+          "SH510300": 1.0
+        }
+      },
+      "description": "酒ETF"
+    },
+    {
+      "name": "industry_159996_gold30",
+      "family": "fixed",
+      "weights": {
+        "SZ159996": 0.65,
+        "SH518880": 0.3
+      },
+      "fallbacks": {
+        "SZ159996": {
+          "SH510300": 1.0
+        }
+      },
+      "description": "家电ETF"
+    },
+    {
+      "name": "industry_159995_gold30",
+      "family": "fixed",
+      "weights": {
+        "SZ159995": 0.65,
+        "SH518880": 0.3
+      },
+      "fallbacks": {
+        "SZ159995": {
+          "SH510300": 1.0
+        }
+      },
+      "description": "芯片ETF"
+    },
+    {
+      "name": "industry_512720_gold30",
+      "family": "fixed",
+      "weights": {
+        "SH512720": 0.65,
+        "SH518880": 0.3
+      },
+      "fallbacks": {
+        "SH512720": {
+          "SH510300": 1.0
+        }
+      },
+      "description": "计算机ETF"
+    },
+    {
+      "name": "industry_515070_gold30",
+      "family": "fixed",
+      "weights": {
+        "SH515070": 0.65,
+        "SH518880": 0.3
+      },
+      "fallbacks": {
+        "SH515070": {
+          "SH510300": 1.0
+        }
+      },
+      "description": "人工智能ETF"
+    },
+    {
+      "name": "industry_512980_gold30",
+      "family": "fixed",
+      "weights": {
+        "SH512980": 0.65,
+        "SH518880": 0.3
+      },
+      "fallbacks": {
+        "SH512980": {
+          "SH510300": 1.0
+        }
+      },
+      "description": "传媒ETF"
+    },
+    {
+      "name": "industry_515880_gold30",
+      "family": "fixed",
+      "weights": {
+        "SH515880": 0.65,
+        "SH518880": 0.3
+      },
+      "fallbacks": {
+        "SH515880": {
+          "SH510300": 1.0
+        }
+      },
+      "description": "通信ETF"
+    },
+    {
+      "name": "industry_512660_gold30",
+      "family": "fixed",
+      "weights": {
+        "SH512660": 0.65,
+        "SH518880": 0.3
+      },
+      "fallbacks": {
+        "SH512660": {
+          "SH510300": 1.0
+        }
+      },
+      "description": "军工ETF"
+    },
+    {
+      "name": "industry_515790_gold30",
+      "family": "fixed",
+      "weights": {
+        "SH515790": 0.65,
+        "SH518880": 0.3
+      },
+      "fallbacks": {
+        "SH515790": {
+          "SH510300": 1.0
+        }
+      },
+      "description": "光伏ETF"
+    },
+    {
+      "name": "industry_515030_gold30",
+      "family": "fixed",
+      "weights": {
+        "SH515030": 0.65,
+        "SH518880": 0.3
+      },
+      "fallbacks": {
+        "SH515030": {
+          "SH510300": 1.0
+        }
+      },
+      "description": "新能源车ETF"
+    },
+    {
+      "name": "industry_512400_gold30",
+      "family": "fixed",
+      "weights": {
+        "SH512400": 0.65,
+        "SH518880": 0.3
+      },
+      "fallbacks": {
+        "SH512400": {
+          "SH510300": 1.0
+        }
+      },
+      "description": "有色金属ETF"
+    },
+    {
+      "name": "industry_515220_gold30",
+      "family": "fixed",
+      "weights": {
+        "SH515220": 0.65,
+        "SH518880": 0.3
+      },
+      "fallbacks": {
+        "SH515220": {
+          "SH510300": 1.0
+        }
+      },
+      "description": "煤炭ETF"
+    },
+    {
+      "name": "industry_512200_gold30",
+      "family": "fixed",
+      "weights": {
+        "SH512200": 0.65,
+        "SH518880": 0.3
+      },
+      "fallbacks": {
+        "SH512200": {
+          "SH510300": 1.0
+        }
+      },
+      "description": "房地产ETF"
+    },
+    {
+      "name": "industry_512580_gold30",
+      "family": "fixed",
+      "weights": {
+        "SH512580": 0.65,
+        "SH518880": 0.3
+      },
+      "fallbacks": {
+        "SH512580": {
+          "SH510300": 1.0
+        }
+      },
+      "description": "环保ETF"
+    }
+  ]
+}

@@ -1,0 +1,135 @@
+{
+  "version": "ex-nasdaq-validation-1",
+  "registered_at": "2026-09-13",
+  "exploration": "output/sp500_ex_nasdaq/runs/20260913-103726-e3743ca2",
+  "primary": "communication60_gold35",
+  "selection_reason": "全行业对照后降低单一通信集中度；主候选在第八轮运行前固定60%，不选择收益最大的权重点。",
+  "stress": [
+    {
+      "name": "slippage_2",
+      "kwargs": {
+        "slippage_multiplier": 2
+      }
+    },
+    {
+      "name": "slippage_3",
+      "kwargs": {
+        "slippage_multiplier": 3
+      }
+    },
+    {
+      "name": "capital_10",
+      "kwargs": {
+        "capital_multiplier": 10
+      }
+    },
+    {
+      "name": "capital_100",
+      "kwargs": {
+        "capital_multiplier": 100
+      }
+    },
+    {
+      "name": "partial_50",
+      "kwargs": {
+        "fill_fraction": 0.5
+      }
+    },
+    {
+      "name": "delay_2",
+      "kwargs": {
+        "delay": 2
+      }
+    }
+  ],
+  "neighbors": [
+    {
+      "name": "communication50",
+      "overrides": {
+        "weights": {
+          "SH515880": 0.5,
+          "SH518880": 0.45
+        }
+      }
+    },
+    {
+      "name": "communication55",
+      "overrides": {
+        "weights": {
+          "SH515880": 0.55,
+          "SH518880": 0.4
+        }
+      }
+    },
+    {
+      "name": "communication60",
+      "overrides": {
+        "weights": {
+          "SH515880": 0.6,
+          "SH518880": 0.35
+        }
+      }
+    },
+    {
+      "name": "communication65",
+      "overrides": {
+        "weights": {
+          "SH515880": 0.65,
+          "SH518880": 0.3
+        }
+      }
+    },
+    {
+      "name": "communication70",
+      "overrides": {
+        "weights": {
+          "SH515880": 0.7,
+          "SH518880": 0.25
+        }
+      }
+    }
+  ],
+  "policy_variants": [
+    {
+      "name": "band_002",
+      "overrides": {
+        "rebalance_band": 0.02
+      }
+    },
+    {
+      "name": "band_005",
+      "overrides": {
+        "rebalance_band": 0.05
+      }
+    },
+    {
+      "name": "commission_min5",
+      "overrides": {
+        "minimum_commission": 5
+      }
+    },
+    {
+      "name": "active_vol20",
+      "overrides": {
+        "volatility_policy": "target",
+        "vol_target": 0.2
+      }
+    },
+    {
+      "name": "active_vol25",
+      "overrides": {
+        "volatility_policy": "target",
+        "vol_target": 0.25
+      }
+    }
+  ],
+  "acceptance": {
+    "both_period_targets_required": true,
+    "research_drawdown_budget": 0.3,
+    "neighbor_fraction_required": 0.6666666666666666,
+    "stress_positive_within_budget_required": true,
+    "production_pointer_unchanged_required": true
+  },
+  "selection_trials": 95,
+  "note": "行业与权重均为已看历史后的开发选择；不修改原20%实盘门槛，不将阶段诊断当作新样本外。"
+}

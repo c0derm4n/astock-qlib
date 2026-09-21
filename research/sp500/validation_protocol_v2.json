@@ -1,0 +1,119 @@
+{
+  "version": "validation-2",
+  "registered_at": "2026-09-13",
+  "exploration_run": "20260913-084158",
+  "primary_candidate": "global65_gold30",
+  "selection_reason": "固定27个开发候选后，第四轮最低权益比例65%已满足2016年以来长期目标。冻结65%权益、30%黄金、5%现金，纳指缺资格时使用合格恒生ETF代理。采用30%研究回撤预算与长区间人民币SPY约32.78%回撤比较，原20%准入线单独报告。",
+  "capital": 1000000,
+  "stress": [
+    {
+      "name": "slippage_2",
+      "kwargs": {
+        "slippage_multiplier": 2
+      }
+    },
+    {
+      "name": "slippage_3",
+      "kwargs": {
+        "slippage_multiplier": 3
+      }
+    },
+    {
+      "name": "capital_10",
+      "kwargs": {
+        "capital_multiplier": 10
+      }
+    },
+    {
+      "name": "capital_100",
+      "kwargs": {
+        "capital_multiplier": 100
+      }
+    },
+    {
+      "name": "partial_50",
+      "kwargs": {
+        "fill_fraction": 0.5
+      }
+    },
+    {
+      "name": "delay_2",
+      "kwargs": {
+        "delay": 2
+      }
+    }
+  ],
+  "weight_neighborhood": {
+    "nasdaq": [
+      0.55,
+      0.6,
+      0.65,
+      0.7,
+      0.75
+    ],
+    "gold_mode": "remaining",
+    "cash": 0.05
+  },
+  "additional_tests": [
+    "vol_target_20",
+    "vol_target_30",
+    "band_0.02",
+    "band_0.05",
+    "split_ratio_5.0",
+    "commission_min_5",
+    "restart_2021",
+    "sample_2016_2020"
+  ],
+  "checks": {
+    "base_long_history_target_required": true,
+    "restart_2021_target_required": true,
+    "execution_stress_positive_and_drawdown_30": true,
+    "neighborhood_at_least_two_thirds_target_and_drawdown_30": true,
+    "original_drawdown_20_reported_separately": true,
+    "negative_results_retained": true
+  },
+  "execution_audit": [
+    "cash_and_units_reconcile_each_day",
+    "signal_before_fill",
+    "eligibility_on_signal_date",
+    "buy_lots_integer",
+    "adv_participation_cap",
+    "no_future_price_dependence",
+    "frozen_source_and_production_pointer_unchanged"
+  ],
+  "note": "时间分段、滚动窗口、费用和权重邻域仅用于诊断已研究历史；不会把2016–2020包装为全新盲测，不改变原投资准入门禁。",
+  "selection_trials": 27,
+  "research_drawdown_budget": 0.3,
+  "policy_variants": [
+    [
+      "vol_target_20",
+      {
+        "vol_target": 0.2
+      }
+    ],
+    [
+      "vol_target_30",
+      {
+        "vol_target": 0.3
+      }
+    ],
+    [
+      "band_0.02",
+      {
+        "rebalance_band": 0.02
+      }
+    ],
+    [
+      "band_0.05",
+      {
+        "rebalance_band": 0.05
+      }
+    ],
+    [
+      "commission_min_5",
+      {
+        "minimum_commission": 5.0
+      }
+    ]
+  ]
+}

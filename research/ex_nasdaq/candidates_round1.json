@@ -1,0 +1,182 @@
+{
+  "version": "ex-nasdaq-round1",
+  "registered_at": "2026-09-13",
+  "source": "output/runs/20260912-220345-f20ea3f5",
+  "benchmark": "output/sp500_exploration/benchmarks/20260913-080721",
+  "starts": {
+    "long": "2016-01-05",
+    "recent": "2021-01-04"
+  },
+  "end": "2026-09-11",
+  "comparison": {
+    "max_cagr_shortfall": 0.02,
+    "min_cumulative_ratio": 0.85
+  },
+  "research_drawdown_budget": 0.3,
+  "hypothesis": "黄金分散与多周期绝对动量可降低国内股市长期弱势拖累，资格和交易摩擦保持一致；全池已看历史，仅作开发研究。",
+  "execution": {
+    "max_weight": 0.85,
+    "max_group_weight": 0.85,
+    "max_equity_weight": 0.95,
+    "max_gross_weight": 0.95,
+    "volatility_policy": "observe_only",
+    "vol_target": 0.25,
+    "max_daily_turnover": 0.3,
+    "rebalance_band": 0.03
+  },
+  "candidates": [
+    {
+      "name": "gold85_control",
+      "family": "fixed",
+      "weights": {
+        "SH518880": 0.85,
+        "SH511260": 0.1
+      }
+    },
+    {
+      "name": "gold60_dividend35",
+      "family": "fixed",
+      "weights": {
+        "SH518880": 0.6,
+        "SH510880": 0.35
+      }
+    },
+    {
+      "name": "gold50_broad45",
+      "family": "fixed",
+      "weights": {
+        "SH518880": 0.5,
+        "SH510300": 0.225,
+        "SZ159920": 0.225
+      }
+    },
+    {
+      "name": "momentum_20_k1",
+      "family": "rotation",
+      "lookbacks": [
+        20,
+        60,
+        120
+      ],
+      "signal": "momentum",
+      "topk": 1,
+      "absolute_filter": true
+    },
+    {
+      "name": "momentum_20_k2",
+      "family": "rotation",
+      "lookbacks": [
+        20,
+        60,
+        120
+      ],
+      "signal": "momentum",
+      "topk": 2,
+      "absolute_filter": true
+    },
+    {
+      "name": "momentum_20_k3",
+      "family": "rotation",
+      "lookbacks": [
+        20,
+        60,
+        120
+      ],
+      "signal": "momentum",
+      "topk": 3,
+      "absolute_filter": true
+    },
+    {
+      "name": "momentum_60_k1",
+      "family": "rotation",
+      "lookbacks": [
+        60,
+        120,
+        240
+      ],
+      "signal": "momentum",
+      "topk": 1,
+      "absolute_filter": true
+    },
+    {
+      "name": "momentum_60_k3",
+      "family": "rotation",
+      "lookbacks": [
+        60,
+        120,
+        240
+      ],
+      "signal": "momentum",
+      "topk": 3,
+      "absolute_filter": true
+    },
+    {
+      "name": "risk_momentum_20_k1",
+      "family": "rotation",
+      "lookbacks": [
+        20,
+        60,
+        120
+      ],
+      "signal": "risk_momentum",
+      "topk": 1,
+      "absolute_filter": true
+    },
+    {
+      "name": "risk_momentum_20_k3",
+      "family": "rotation",
+      "lookbacks": [
+        20,
+        60,
+        120
+      ],
+      "signal": "risk_momentum",
+      "topk": 3,
+      "absolute_filter": true
+    },
+    {
+      "name": "risk_momentum_60_k2",
+      "family": "rotation",
+      "lookbacks": [
+        60,
+        120,
+        240
+      ],
+      "signal": "risk_momentum",
+      "topk": 2,
+      "absolute_filter": true
+    },
+    {
+      "name": "gold50_domestic_momentum",
+      "family": "hybrid",
+      "weights": {
+        "SH518880": 0.5
+      },
+      "satellite_weight": 0.45,
+      "signal": "momentum",
+      "lookbacks": [
+        20,
+        60,
+        120
+      ],
+      "topk": 3,
+      "absolute_filter": true
+    },
+    {
+      "name": "gold50_domestic_risk_momentum",
+      "family": "hybrid",
+      "weights": {
+        "SH518880": 0.5
+      },
+      "satellite_weight": 0.45,
+      "signal": "risk_momentum",
+      "lookbacks": [
+        20,
+        60,
+        120
+      ],
+      "topk": 3,
+      "absolute_filter": true
+    }
+  ]
+}

@@ -1,0 +1,42 @@
+{
+  "version": "goal30-relative-allocation-1",
+  "hypothesis": "固定权益配置的长期未恢复损失主导日均回撤；将有限资本在现有权益和黄金之间按当日已知的正向趋势相对强度重新分配，有机会减少长期水下暴露，同时保留持续上涨资产的收益贡献。",
+  "research_status": "已查看95个候选、18个风险情景和全部历史后的机制探索；3只标的沿用此前已选资产，选择偏差仍在，不是独立样本外证据",
+  "start": "2016-09-12",
+  "end": "2026-09-11",
+  "baseline_archive": "output/goal30/cash_replay/20260913-152542-31f263cf",
+  "signal_symbols": ["SH510300", "SH515880", "SH518880"],
+  "lookbacks": [63, 126, 252],
+  "volatility_window": 63,
+  "annualization_days": 252,
+  "volatility_floor": 0.05,
+  "primary": "proportional_strength",
+  "variants": [
+    {"name": "proportional_strength", "method": "proportional"},
+    {"name": "horizon_votes", "method": "votes"},
+    {"name": "equal_positive", "method": "equal"}
+  ],
+  "scenarios": [
+    {"name": "base", "slippage_multiplier": 1.0, "payment_delay_sessions": 0},
+    {"name": "slippage_2", "slippage_multiplier": 2.0, "payment_delay_sessions": 0},
+    {"name": "payment_delay_5", "slippage_multiplier": 1.0, "payment_delay_sessions": 5}
+  ],
+  "rules": {
+    "scope": "仅买入固定30只范围内的原3只已持有标的；3只同等参与排序，沪深300不再仅作为通信资格代理",
+    "signal": "每个期限的年化对数动量=log(当日复权收盘价/期限前复权收盘价)*252/期限；除以63个日简单收益的样本标准差乘sqrt(252)，波动率下限5%",
+    "history": "每只标的须有包括当日在内253个连续有效正价格；不足、缺失或非有限价格均不参与，无上市前拼接，无向前填充信号价格",
+    "proportional": "三个期限风险调整动量取算术平均，只有均值为正的合格资产参与；以各正均值占其总和的比例分配95%预算",
+    "votes": "95%预算分成三个等额期限份额，各期限选正风险调整动量最高的合格资产；完全同分时等分该期限份额，无正信号则该份额留现金",
+    "equal": "三个期限风险调整动量均值为正的合格资产等分95%预算",
+    "constraints": "95%总预算、85%单只上限、原分组/权益上限、3个百分点漂移带、30%换手约束、100份整手、2%ADV参与率、保守现金预算及原费用保持；受限部分不强制重新分配",
+    "timing": "每天收盘计算一次；信号后下一交易日开盘执行，排队退出的资产先完成清仓，未投资现金收益为0",
+    "corporate_actions": "调用冻结现金引擎，仅替换运行内的分配回调；登记日权益、除息应收、支付到账和拆分保持原规则"
+  },
+  "evaluation": {
+    "benchmark": "同一中国交易日、人民币SPY含分红再投资",
+    "primary_requirements": "CAGR不低于SPY，逐日平均回撤不高于SPY；另检查原20%最大回撤准入线，年度最大回撤均值仅补充",
+    "stress": "全部3种方法运行基础、滑点2倍、支付延迟5日，共9情景，保留所有失败结果",
+    "robustness": "机制对照使用相同观察期，不在看到本批结果后改变窗口或权重；逐年收益全部保存",
+    "promotion": "不自动切换正式指针或每日策略；公司行动完整性、30只历史目录、账户对账及126日真实前瞻未完成时不批准实盘"
+  }
+}

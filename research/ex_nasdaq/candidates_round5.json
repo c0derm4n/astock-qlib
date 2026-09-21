@@ -1,0 +1,171 @@
+{
+  "version": "ex-nasdaq-round5",
+  "registered_at": "2026-09-13",
+  "source": "output/runs/20260912-220345-f20ea3f5",
+  "benchmark": "output/sp500_exploration/benchmarks/20260913-080721",
+  "starts": {
+    "long": "2016-01-05",
+    "recent": "2021-01-04"
+  },
+  "end": "2026-09-11",
+  "comparison": {
+    "max_cagr_shortfall": 0.02,
+    "min_cumulative_ratio": 0.85
+  },
+  "research_drawdown_budget": 0.3,
+  "hypothesis": "前三轮最稳定的长期风险动量仍有反转损失，新增独立的每日均线退出门槛，保留月度/每周排名节奏。检验60/120/200日退出与有无25%波动控制；所有候选在运行前登记。",
+  "execution": {
+    "max_weight": 0.85,
+    "max_group_weight": 0.85,
+    "max_equity_weight": 0.95,
+    "max_gross_weight": 0.95,
+    "volatility_policy": "observe_only",
+    "vol_target": 0.25,
+    "max_daily_turnover": 0.3,
+    "rebalance_band": 0.03
+  },
+  "candidates": [
+    {
+      "name": "risklong_trend60_M",
+      "family": "rotation",
+      "lookbacks": [
+        60,
+        120,
+        240
+      ],
+      "signal": "risk_momentum",
+      "topk": 2,
+      "absolute_filter": true,
+      "rebalance_frequency": "M",
+      "daily_trend_exit": 60,
+      "policy_overrides": {
+        "volatility_policy": "target",
+        "vol_target": 0.25
+      }
+    },
+    {
+      "name": "risklong_trend60_W-FRI",
+      "family": "rotation",
+      "lookbacks": [
+        60,
+        120,
+        240
+      ],
+      "signal": "risk_momentum",
+      "topk": 2,
+      "absolute_filter": true,
+      "rebalance_frequency": "W-FRI",
+      "daily_trend_exit": 60,
+      "policy_overrides": {
+        "volatility_policy": "target",
+        "vol_target": 0.25
+      }
+    },
+    {
+      "name": "risklong_trend120_M",
+      "family": "rotation",
+      "lookbacks": [
+        60,
+        120,
+        240
+      ],
+      "signal": "risk_momentum",
+      "topk": 2,
+      "absolute_filter": true,
+      "rebalance_frequency": "M",
+      "daily_trend_exit": 120,
+      "policy_overrides": {
+        "volatility_policy": "target",
+        "vol_target": 0.25
+      }
+    },
+    {
+      "name": "risklong_trend120_W-FRI",
+      "family": "rotation",
+      "lookbacks": [
+        60,
+        120,
+        240
+      ],
+      "signal": "risk_momentum",
+      "topk": 2,
+      "absolute_filter": true,
+      "rebalance_frequency": "W-FRI",
+      "daily_trend_exit": 120,
+      "policy_overrides": {
+        "volatility_policy": "target",
+        "vol_target": 0.25
+      }
+    },
+    {
+      "name": "risklong_trend200_M",
+      "family": "rotation",
+      "lookbacks": [
+        60,
+        120,
+        240
+      ],
+      "signal": "risk_momentum",
+      "topk": 2,
+      "absolute_filter": true,
+      "rebalance_frequency": "M",
+      "daily_trend_exit": 200,
+      "policy_overrides": {
+        "volatility_policy": "target",
+        "vol_target": 0.25
+      }
+    },
+    {
+      "name": "risklong_trend200_W-FRI",
+      "family": "rotation",
+      "lookbacks": [
+        60,
+        120,
+        240
+      ],
+      "signal": "risk_momentum",
+      "topk": 2,
+      "absolute_filter": true,
+      "rebalance_frequency": "W-FRI",
+      "daily_trend_exit": 200,
+      "policy_overrides": {
+        "volatility_policy": "target",
+        "vol_target": 0.25
+      }
+    },
+    {
+      "name": "risklong_trend120_k1",
+      "family": "rotation",
+      "lookbacks": [
+        60,
+        120,
+        240
+      ],
+      "signal": "risk_momentum",
+      "topk": 1,
+      "absolute_filter": true,
+      "daily_trend_exit": 120,
+      "policy_overrides": {
+        "volatility_policy": "target",
+        "vol_target": 0.25
+      }
+    },
+    {
+      "name": "risklong_trend120_k3",
+      "family": "rotation",
+      "lookbacks": [
+        60,
+        120,
+        240
+      ],
+      "signal": "risk_momentum",
+      "topk": 3,
+      "absolute_filter": true,
+      "daily_trend_exit": 120,
+      "policy_overrides": {
+        "volatility_policy": "target",
+        "vol_target": 0.25
+      }
+    }
+  ]
+}

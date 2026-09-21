@@ -1,0 +1,258 @@
+{
+  "version": "ex-nasdaq-round3",
+  "registered_at": "2026-09-13",
+  "source": "output/runs/20260912-220345-f20ea3f5",
+  "benchmark": "output/sp500_exploration/benchmarks/20260913-080721",
+  "starts": {
+    "long": "2016-01-05",
+    "recent": "2021-01-04"
+  },
+  "end": "2026-09-11",
+  "comparison": {
+    "max_cagr_shortfall": 0.02,
+    "min_cumulative_ratio": 0.85
+  },
+  "research_drawdown_budget": 0.3,
+  "hypothesis": "第二轮每日全行业轮动增加了噪声和成交损耗。按预先存在的资产分类，仅在宽基/风格、恒生、黄金、国债中进行宏观轮动，检验降低同质行业竞争的效果；另检验最稳定的长期风险动量的波动约束，不选择具体历史行业赢家。",
+  "execution": {
+    "max_weight": 0.85,
+    "max_group_weight": 0.85,
+    "max_equity_weight": 0.95,
+    "max_gross_weight": 0.95,
+    "volatility_policy": "observe_only",
+    "vol_target": 0.25,
+    "max_daily_turnover": 0.3,
+    "rebalance_band": 0.03
+  },
+  "candidates": [
+    {
+      "name": "macro_momentum20_k1",
+      "family": "rotation",
+      "signal_scope": "macro",
+      "lookbacks": [
+        20,
+        60,
+        120
+      ],
+      "signal": "momentum",
+      "topk": 1,
+      "absolute_filter": true
+    },
+    {
+      "name": "macro_momentum60_k1",
+      "family": "rotation",
+      "signal_scope": "macro",
+      "lookbacks": [
+        60,
+        120,
+        240
+      ],
+      "signal": "momentum",
+      "topk": 1,
+      "absolute_filter": true
+    },
+    {
+      "name": "macro_momentum60_k2",
+      "family": "rotation",
+      "signal_scope": "macro",
+      "lookbacks": [
+        60,
+        120,
+        240
+      ],
+      "signal": "momentum",
+      "topk": 2,
+      "absolute_filter": true
+    },
+    {
+      "name": "macro_risk_momentum20_k1",
+      "family": "rotation",
+      "signal_scope": "macro",
+      "lookbacks": [
+        20,
+        60,
+        120
+      ],
+      "signal": "risk_momentum",
+      "topk": 1,
+      "absolute_filter": true
+    },
+    {
+      "name": "macro_risk_momentum20_k2",
+      "family": "rotation",
+      "signal_scope": "macro",
+      "lookbacks": [
+        20,
+        60,
+        120
+      ],
+      "signal": "risk_momentum",
+      "topk": 2,
+      "absolute_filter": true
+    },
+    {
+      "name": "macro_risk_momentum60_k1",
+      "family": "rotation",
+      "signal_scope": "macro",
+      "lookbacks": [
+        60,
+        120,
+        240
+      ],
+      "signal": "risk_momentum",
+      "topk": 1,
+      "absolute_filter": true
+    },
+    {
+      "name": "macro_risk_momentum60_k2",
+      "family": "rotation",
+      "signal_scope": "macro",
+      "lookbacks": [
+        60,
+        120,
+        240
+      ],
+      "signal": "risk_momentum",
+      "topk": 2,
+      "absolute_filter": true
+    },
+    {
+      "name": "macro_regression20_D",
+      "family": "rotation",
+      "signal_scope": "macro",
+      "lookbacks": [
+        20
+      ],
+      "signal": "regression_trend",
+      "topk": 1,
+      "absolute_filter": true,
+      "rebalance_frequency": "D"
+    },
+    {
+      "name": "macro_regression60_W-FRI",
+      "family": "rotation",
+      "signal_scope": "macro",
+      "lookbacks": [
+        60
+      ],
+      "signal": "regression_trend",
+      "topk": 1,
+      "absolute_filter": true,
+      "rebalance_frequency": "W-FRI"
+    },
+    {
+      "name": "macro_regression120_M",
+      "family": "rotation",
+      "signal_scope": "macro",
+      "lookbacks": [
+        120
+      ],
+      "signal": "regression_trend",
+      "topk": 1,
+      "absolute_filter": true,
+      "rebalance_frequency": "M"
+    },
+    {
+      "name": "all_risk_long_k2_vol0.15",
+      "family": "rotation",
+      "signal_scope": "all",
+      "lookbacks": [
+        60,
+        120,
+        240
+      ],
+      "signal": "risk_momentum",
+      "topk": 2,
+      "absolute_filter": true,
+      "policy_overrides": {
+        "volatility_policy": "target",
+        "vol_target": 0.15
+      }
+    },
+    {
+      "name": "all_risk_long_k2_vol0.2",
+      "family": "rotation",
+      "signal_scope": "all",
+      "lookbacks": [
+        60,
+        120,
+        240
+      ],
+      "signal": "risk_momentum",
+      "topk": 2,
+      "absolute_filter": true,
+      "policy_overrides": {
+        "volatility_policy": "target",
+        "vol_target": 0.2
+      }
+    },
+    {
+      "name": "all_risk_long_k2_vol0.25",
+      "family": "rotation",
+      "signal_scope": "all",
+      "lookbacks": [
+        60,
+        120,
+        240
+      ],
+      "signal": "risk_momentum",
+      "topk": 2,
+      "absolute_filter": true,
+      "policy_overrides": {
+        "volatility_policy": "target",
+        "vol_target": 0.25
+      }
+    },
+    {
+      "name": "macro_risk_long_k2_vol0.15",
+      "family": "rotation",
+      "signal_scope": "macro",
+      "lookbacks": [
+        60,
+        120,
+        240
+      ],
+      "signal": "risk_momentum",
+      "topk": 2,
+      "absolute_filter": true,
+      "policy_overrides": {
+        "volatility_policy": "target",
+        "vol_target": 0.15
+      }
+    },
+    {
+      "name": "macro_risk_long_k2_vol0.2",
+      "family": "rotation",
+      "signal_scope": "macro",
+      "lookbacks": [
+        60,
+        120,
+        240
+      ],
+      "signal": "risk_momentum",
+      "topk": 2,
+      "absolute_filter": true,
+      "policy_overrides": {
+        "volatility_policy": "target",
+        "vol_target": 0.2
+      }
+    },
+    {
+      "name": "macro_risk_long_k2_vol0.25",
+      "family": "rotation",
+      "signal_scope": "macro",
+      "lookbacks": [
+        60,
+        120,
+        240
+      ],
+      "signal": "risk_momentum",
+      "topk": 2,
+      "absolute_filter": true,
+      "policy_overrides": {
+        "volatility_policy": "target",
+        "vol_target": 0.25
+      }
+    }
+  ]
+}

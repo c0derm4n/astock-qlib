@@ -1,0 +1,196 @@
+{
+  "version": "ex-nasdaq-round4",
+  "registered_at": "2026-09-13",
+  "source": "output/runs/20260912-220345-f20ea3f5",
+  "benchmark": "output/sp500_exploration/benchmarks/20260913-080721",
+  "starts": {
+    "long": "2016-01-05",
+    "recent": "2021-01-04"
+  },
+  "end": "2026-09-11",
+  "comparison": {
+    "max_cagr_shortfall": 0.02,
+    "min_cumulative_ratio": 0.85
+  },
+  "research_drawdown_budget": 0.3,
+  "hypothesis": "此前趋势追涨对中国ETF行业反转适应差；新假设是在长期均线以上买短期回调，利用ETF短期均值回归并限制持续下跌资产。检验5/20日回调、120/240日趋势与分散3/5只，采用每周信号；黄金核心另作分散对照。",
+  "execution": {
+    "max_weight": 0.85,
+    "max_group_weight": 0.85,
+    "max_equity_weight": 0.95,
+    "max_gross_weight": 0.95,
+    "volatility_policy": "observe_only",
+    "vol_target": 0.25,
+    "max_daily_turnover": 0.3,
+    "rebalance_band": 0.03
+  },
+  "candidates": [
+    {
+      "name": "pullback5_trend120_k3",
+      "family": "rotation",
+      "signal": "pullback",
+      "lookbacks": [
+        5
+      ],
+      "trend_window": 120,
+      "topk": 3,
+      "absolute_filter": true,
+      "rebalance_frequency": "W-FRI",
+      "policy_overrides": {
+        "volatility_policy": "target",
+        "vol_target": 0.2
+      }
+    },
+    {
+      "name": "pullback5_trend120_k5",
+      "family": "rotation",
+      "signal": "pullback",
+      "lookbacks": [
+        5
+      ],
+      "trend_window": 120,
+      "topk": 5,
+      "absolute_filter": true,
+      "rebalance_frequency": "W-FRI",
+      "policy_overrides": {
+        "volatility_policy": "target",
+        "vol_target": 0.2
+      }
+    },
+    {
+      "name": "pullback5_trend240_k3",
+      "family": "rotation",
+      "signal": "pullback",
+      "lookbacks": [
+        5
+      ],
+      "trend_window": 240,
+      "topk": 3,
+      "absolute_filter": true,
+      "rebalance_frequency": "W-FRI",
+      "policy_overrides": {
+        "volatility_policy": "target",
+        "vol_target": 0.2
+      }
+    },
+    {
+      "name": "pullback5_trend240_k5",
+      "family": "rotation",
+      "signal": "pullback",
+      "lookbacks": [
+        5
+      ],
+      "trend_window": 240,
+      "topk": 5,
+      "absolute_filter": true,
+      "rebalance_frequency": "W-FRI",
+      "policy_overrides": {
+        "volatility_policy": "target",
+        "vol_target": 0.2
+      }
+    },
+    {
+      "name": "pullback20_trend120_k3",
+      "family": "rotation",
+      "signal": "pullback",
+      "lookbacks": [
+        20
+      ],
+      "trend_window": 120,
+      "topk": 3,
+      "absolute_filter": true,
+      "rebalance_frequency": "W-FRI",
+      "policy_overrides": {
+        "volatility_policy": "target",
+        "vol_target": 0.2
+      }
+    },
+    {
+      "name": "pullback20_trend240_k3",
+      "family": "rotation",
+      "signal": "pullback",
+      "lookbacks": [
+        20
+      ],
+      "trend_window": 240,
+      "topk": 3,
+      "absolute_filter": true,
+      "rebalance_frequency": "W-FRI",
+      "policy_overrides": {
+        "volatility_policy": "target",
+        "vol_target": 0.2
+      }
+    },
+    {
+      "name": "gold40_pullback5_trend120",
+      "family": "hybrid",
+      "weights": {
+        "SH518880": 0.4
+      },
+      "satellite_weight": 0.55,
+      "signal": "pullback",
+      "lookbacks": [
+        5
+      ],
+      "trend_window": 120,
+      "topk": 3,
+      "absolute_filter": true,
+      "rebalance_frequency": "W-FRI",
+      "policy_overrides": {
+        "volatility_policy": "target",
+        "vol_target": 0.2
+      }
+    },
+    {
+      "name": "gold40_pullback20_trend120",
+      "family": "hybrid",
+      "weights": {
+        "SH518880": 0.4
+      },
+      "satellite_weight": 0.55,
+      "signal": "pullback",
+      "lookbacks": [
+        20
+      ],
+      "trend_window": 120,
+      "topk": 3,
+      "absolute_filter": true,
+      "rebalance_frequency": "W-FRI",
+      "policy_overrides": {
+        "volatility_policy": "target",
+        "vol_target": 0.2
+      }
+    },
+    {
+      "name": "pullback5_trend120_k3_daily",
+      "family": "rotation",
+      "signal": "pullback",
+      "lookbacks": [
+        5
+      ],
+      "trend_window": 120,
+      "topk": 3,
+      "absolute_filter": true,
+      "rebalance_frequency": "D",
+      "policy_overrides": {
+        "volatility_policy": "target",
+        "vol_target": 0.2
+      }
+    },
+    {
+      "name": "pullback5_trend120_k3_no_vol",
+      "family": "rotation",
+      "signal": "pullback",
+      "lookbacks": [
+        5
+      ],
+      "trend_window": 120,
+      "topk": 3,
+      "absolute_filter": true,
+      "rebalance_frequency": "W-FRI",
+      "policy_overrides": {
+        "volatility_policy": "observe_only"
+      }
+    }
+  ]
+}

@@ -1,0 +1,94 @@
+{
+  "version": "ex-nasdaq-round8",
+  "registered_at": "2026-09-13",
+  "source": "output/runs/20260912-220345-f20ea3f5",
+  "benchmark": "output/sp500_exploration/benchmarks/20260913-080721",
+  "starts": {
+    "long": "2016-01-05",
+    "recent": "2021-01-04"
+  },
+  "end": "2026-09-11",
+  "comparison": {
+    "max_cagr_shortfall": 0.02,
+    "min_cumulative_ratio": 0.85
+  },
+  "research_drawdown_budget": 0.3,
+  "hypothesis": "第七轮全行业对照中通信65%/黄金30%双区间达到收益目标，但最大回撤接近30%预算。先登记更保守的60%通信/35%黄金作为主候选，以及50%-70%的完整权重邻域；不选择收益最高的权重点。",
+  "execution": {
+    "max_weight": 0.85,
+    "max_group_weight": 0.85,
+    "max_equity_weight": 0.95,
+    "max_gross_weight": 0.95,
+    "volatility_policy": "observe_only",
+    "vol_target": 0.25,
+    "max_daily_turnover": 0.3,
+    "rebalance_band": 0.03
+  },
+  "candidates": [
+    {
+      "name": "communication50_gold45",
+      "family": "fixed",
+      "weights": {
+        "SH515880": 0.5,
+        "SH518880": 0.45
+      },
+      "fallbacks": {
+        "SH515880": {
+          "SH510300": 1.0
+        }
+      }
+    },
+    {
+      "name": "communication55_gold40",
+      "family": "fixed",
+      "weights": {
+        "SH515880": 0.55,
+        "SH518880": 0.4
+      },
+      "fallbacks": {
+        "SH515880": {
+          "SH510300": 1.0
+        }
+      }
+    },
+    {
+      "name": "communication60_gold35",
+      "family": "fixed",
+      "weights": {
+        "SH515880": 0.6,
+        "SH518880": 0.35
+      },
+      "fallbacks": {
+        "SH515880": {
+          "SH510300": 1.0
+        }
+      }
+    },
+    {
+      "name": "communication65_gold30",
+      "family": "fixed",
+      "weights": {
+        "SH515880": 0.65,
+        "SH518880": 0.3
+      },
+      "fallbacks": {
+        "SH515880": {
+          "SH510300": 1.0
+        }
+      }
+    },
+    {
+      "name": "communication70_gold25",
+      "family": "fixed",
+      "weights": {
+        "SH515880": 0.7,
+        "SH518880": 0.25
+      },
+      "fallbacks": {
+        "SH515880": {
+          "SH510300": 1.0
+        }
+      }
+    }
+  ]
+}

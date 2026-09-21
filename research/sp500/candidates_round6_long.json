@@ -1,0 +1,18 @@
+{
+  "version": "exploration-6-long",
+  "registered_at": "2026-09-13",
+  "parent_validation": "20260913-084517",
+  "rejected_schedule_run": "20260913-085603",
+  "selection_disclosure": "31个不同规则候选已登记测试。主区间收益接近的候选尚未满足预定权重稳健性；调仓窗口4个尝试失败。第六轮固定65%/30%配置，单独检验波动择时作用，不调资产权重。",
+  "hypothesis": "固定非杠杆配置通过权益/黄金分散风险；波动冲击后的强制减仓可能错过恢复，观察波动而不按其择时或使用较宽波动上限，可能改善长期收益和参数稳定性。",
+  "start": "2016-01-04",
+  "end": "2026-09-11",
+  "comparison": {"max_cagr_shortfall": 0.02, "min_cumulative_ratio": 0.85},
+  "candidates": [
+    {"name": "fixed_risk_vol30", "family": "fixed", "weights": {"SH513100": 0.65, "SH518880": 0.3}, "fallbacks": {"SH513100": {"SZ159920": 1.0}}, "policy_overrides": {"vol_target": 0.3}},
+    {"name": "fixed_risk_vol40", "family": "fixed", "weights": {"SH513100": 0.65, "SH518880": 0.3}, "fallbacks": {"SH513100": {"SZ159920": 1.0}}, "policy_overrides": {"vol_target": 0.4}},
+    {"name": "fixed_risk_observe", "family": "fixed", "weights": {"SH513100": 0.65, "SH518880": 0.3}, "fallbacks": {"SH513100": {"SZ159920": 1.0}}, "policy_overrides": {"volatility_policy": "observe_only"}}
+  ],
+  "execution": {"rebalance": "fixed_targets_daily_band_and_eligibility_fallback", "max_weight": 0.85, "max_group_weight": 0.85, "max_equity_weight": 0.95, "max_gross_weight": 0.95, "vol_target": 0.25, "max_daily_turnover": 0.3, "rebalance_band": 0.03},
+  "risk_note": "波动观察模式不提供目标波动保护，可能提高回撤；不加杠杆，不放宽规模/流动性/成交约束。30%研究回撤预算与原20%准入线分别报告。"
+}

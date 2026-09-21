@@ -1,0 +1,15 @@
+{
+  "purpose": "独立检验通信ETF折算比例精度对既有策略收益与回撤的影响，不选择新权重或修改原库",
+  "start": "2016-09-12",
+  "end": "2026-09-11",
+  "symbol": "SH515880",
+  "events": [
+    {"effective_date": "2026-02-03", "ratio": 3.0, "eastmoney_book_date": "2026-02-02"},
+    {"effective_date": "2026-07-06", "ratio": 2.0, "eastmoney_book_date": "2026-07-03"}
+  ],
+  "sources": [
+    "https://fundf10.eastmoney.com/fhsp_515880.html",
+    "https://finance.sina.com.cn/realstock/company/sh515880/hfq.js"
+  ],
+  "limitation": "公开渠道比例相同但登记日和生效日不同；本检验保留冻结原行情的生效日，仅替换比例。发行人原始公告和现金支付重放仍需独立核验。"
+}
