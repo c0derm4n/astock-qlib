@@ -1,15 +1,13 @@
-# A股 Qlib 选股系统依赖（Python 3.10）
+# A股 ETF 轮动研究系统依赖（Python 3.10）
 # 安装：pip install -r requirements.txt
 # 建议用清华镜像：pip install -r requirements.txt -i https://pypi.tuna.tsinghua.edu.cn/simple
 
-pyqlib==0.9.7      # 微软 Qlib，AI量化框架（会自动安装 lightgbm/pandas/numpy 等）
 tushare==1.4.29    # ETF 数据接口库（fund_daily/fund_adj/fund_nav/etf_basic）
 # tinyshare：tushare 代理接口（API 兼容，需授权码），当前 src/datasource/tushare_source.py 实际 import tinyshare
 # 安装：pip install tinyshare --extra-index-url https://minidoc.pages.dev/simple/ -U
 akshare==1.18.75   # ETF 校验/补数源（fund_etf_hist_em）
 duckdb==1.5.5      # 本地规范化真源 + 数据血缘（DuckDB/Parquet）
 
-# 以下由 pyqlib 自动带入，列出以固定验证过的版本
 lightgbm==4.7.0
 pandas==2.3.3
 numpy==2.2.6
