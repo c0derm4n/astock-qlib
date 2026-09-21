@@ -75,6 +75,32 @@ def stress_scenarios(protocol, full_stress=True):
     return scenarios
 
 
+def index_benchmark(dates):
+    """真沪深300指数买入持有对照：与策略同窗口，不计费用与换手。
+
+    指数日线是不含分红的价格指数，与 ETF 后复权全收益口径不同，故仅作对照展示，
+    不参与投资准入门禁。指数缺失或未覆盖整个窗口时返回 None，由调用方跳过该行。
+    """
+    code = getattr(config, "BENCHMARK_INDEX_TS", "")
+    if not code or len(dates) < 2:
+        return None
+    from src.datasource import DataStore
+    with DataStore() as store:
+        frame = store.load_index(code)
+    if frame.empty:
+        return None
+    closes = pd.Series(frame["close"].to_numpy(dtype=float),
+                       index=pd.to_datetime(frame["date"])).sort_index()
+    closes = closes[~closes.index.duplicated()]
+    if closes.empty or closes.index[0] > dates[0] or closes.index[-1] < dates[-1]:
+        return None
+    closes = closes.reindex(dates).ffill()
+    if closes.isna().any():
+        return None
+    net = closes.pct_change(fill_method=None).fillna(0.)
+    return pd.DataFrame({"return": net, "cost": 0., "turnover": 0.}, index=dates)
+
+
 def run_research(*, as_of=None, full_stress=True):
     protocol = read_protocol()
     code = code_fingerprint()
@@ -121,6 +147,14 @@ def run_research(*, as_of=None, full_stress=True):
         reports[name], summaries[name] = report, performance(report, protocol["annualization_days"])
         report.to_csv(directory / f"report_{name}.csv")
         print(f"对照 {name}: 扣费累计 {summaries[name]['cumulative_return']:.2%}", flush=True)
+    index_report = index_benchmark(reports[primary].index)
+    if index_report is None:
+        print(f"对照 csi300_index: 跳过（{config.BENCHMARK_INDEX_TS} 指数日线缺失或未覆盖窗口）", flush=True)
+    else:
+        reports["csi300_index"] = index_report
+        summaries["csi300_index"] = performance(index_report, protocol["annualization_days"])
+        index_report.to_csv(directory / "report_csi300_index.csv")
+        print(f"对照 csi300_index: 累计 {summaries['csi300_index']['cumulative_return']:.2%}", flush=True)
     stress = {}
     scenarios = stress_scenarios(protocol, full_stress)
     for name, kwargs in scenarios:
@@ -192,6 +226,8 @@ def run_research(*, as_of=None, full_stress=True):
         "strategy_annual_pct": summaries[primary]["cagr"]*100,
         "strategy_max_drawdown_pct": summaries[primary]["max_drawdown"]*100,
         "hs300_cum_return_pct": summaries["csi300_etf"]["cumulative_return"]*100,
+        "hs300_index_cum_return_pct": (summaries["csi300_index"]["cumulative_return"]*100
+                                       if "csi300_index" in summaries else None),
         "eqw_cum_return_pct": summaries["equal"]["cumulative_return"]*100},
         "finished_at": pd.Timestamp.now().isoformat(), "data_version": run_id, "investment_gate": gate})
     manifest = {"schema_version": 2, "run_id": run_id, "data_version": market.fingerprint,
