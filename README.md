@@ -1,201 +1,131 @@
-# A股 ETF 轮动系统（Qlib + LightGBM）
+# A股 ETF 轮动研究系统 v2.1.1
 
-用机器学习给一篮子 A股 ETF **每日打分排名、做行业/风格轮动**的最小可用系统。
-（本项目由"买个股"升级为**只买 ETF**：单只 ETF 已分散、无个股暴雷、行业动量更持续，且**免印花税**、成本更低，更契合 TopK 排序轮动。）
+以明确时间边界、固定研究协议和可复现产物为核心的 ETF 轮动研究与模拟决策系统。保留 Qlib 数据导出及 Alpha158 兼容研究接口，正式训练入口使用 14 项因果技术特征、简单动量/岭回归/浅层 LightGBM 对照。
 
-- **标的**：内置**宽基 + 行业主题 + 跨资产防守 ETF**（沪深300/500/1000/50/创业板/科创/红利 + 证券/银行/医药/消费/芯片/军工/光伏/新能源车/有色/煤炭… + 十年国债/黄金，见 `universe.py`）。**只操作 ETF，且不考虑 QDII**（纳指/恒生仅留历史数据，`config.EXCLUDE_QDII=True` 彻底不参与交易）
-- **特征**：微软 Qlib 内置的 **Alpha158**——158 个技术指标（K线形态、均线、动量ROC、波动率、量价相关性、类RSI等）
-- **模型**：LightGBM 预测未来 20 个交易日收益，做横截面排序轮动（中长线趋势）
-- **策略**：TopK 轮动 + **最小持有期保护**（`HOLD_THRESH=5`，修复"调仓周期≪预测周期"错配，样本外收益 +21%→+49%）+ **跨资产防守**（池含债/金，坏年份自动轮到防守）；趋势过滤 v2 / 波动率目标仓位为可选研究项（实证为负贡献，**默认关闭**）
-- **每日决策**：交易日 **14:30** 运行 `python -m src.decide`（可用任务计划自动触发），用盘中现价≈收盘价打分，对比持仓输出**买入/卖出/持有**清单（含持有期保护：未满 `HOLD_THRESH` 的持仓不卖出）
-- **Web 界面**：Vue3 + FastAPI 可视化（总览 / 选ETF清单 / 每日决策 / 回测分析 / 数据管道一键运行），部署见 `docs/DEPLOYMENT.md`
-- **验证**：**walk-forward 滚动重训**（逐年样本外，2021–2026），回测计入 ETF 成本/涨跌停
-- **输出**：每个交易日一份 TopK 选 ETF 清单（代码+名称+打分）
-- **对标**：真实**沪深300**（BENCH300，以沪深300ETF代理）＋全ETF等权参考
+**当前只能用于模拟研究。工程测试通过不代表策略投资准入通过；准入结果见每次运行的 acceptance.json 和 Web 总览。** 旧 README 的收益数字与盘中执行方式已归档，不再作为当前版本结论。
 
-> ⚠️ 本项目是**决策支持工具**，输出为模型打分排名，**不是投资建议**。务必先模拟盘验证、结合宏观与风控，盈亏自负。
+2026-09-13完成 [剔除纳指后的30只ETF研究](docs/SP500_EX_NASDAQ_ACCEPTANCE.md)：60%通信ETF、35%黄金、5%现金，通信不合格时用合格沪深300承接。2016年以来年化15.51%（人民币SPY 15.42%）、最大回撤26.66%；2021重新建仓年化21.88%。95个登记配置、6项执行压力与4/5权重邻域完成验证，独立重放一致。**结果高度依赖2025年通信行情，实盘准入仍未通过。** 运行 `python -m research.ex_nasdaq.replay` 重放；详见 [独立研究入口](research/ex_nasdaq/README.md)。
 
----
+2026-09-13新增独立的 [标普500对标策略研究](docs/SP500_STRATEGY_ACCEPTANCE.md)：固定31只ETF内的海外权益/黄金配置，2016年以来年化14.47%，2021重新建仓年化15.81%，接近同期含分红、折算人民币的SPY基准。研究使用不同的风险预算，仍需真实前瞻及投资准入验证。运行 `python -m research.sp500.replay` 可校验冻结输入后重放；完整过程见 [研究计划](docs/SP500_STRATEGY_EXPLORATION_PLAN.md)。
 
-## 目录结构
+v2.1.1使用原LightGBM配合新的执行规则；本轮尝试的岭回归候选因回撤与延迟压力不合格被否决，完整结果保留。固定20%债券、10%黄金底仓，65%为最多6只权益ETF轮动目标；最小持有20交易日、排名缓冲2名。缺资格的底仓保留现金，所有风险上限仍适用。修订与模型选择基于已研究历史，仅是开发候选，完整准入标准没有降低。部分卖出持续跟踪退出意图，买单不预支未成交卖单的资金或风险余量。
 
-```
-astock-qlib/
-├── config.py          # ★ 全局配置（ETF池/日期/数据源/校验/滑点/动态池/超参）
-├── universe.py        # 内置 ETF 候选池（代码->名称）+ 资产类别
-├── src/
-│   ├── datasource/    # 数据访问层：Tushare主源 + AKShare校验 + DuckDB 存储
-│   │   ├── store.py           # DuckDB 规范化真源 + 血缘 + 后复权/溢价派生
-│   │   ├── tushare_source.py  # fund_daily/fund_adj/fund_nav/etf_basic
-│   │   └── akshare_source.py  # fund_etf_hist_em（校验/补数）
-│   ├── fetch_data.py  # 第1步：抓数据 -> DuckDB（含抽样交叉校验）
-│   ├── dump_qlib.py   # 第2步：DuckDB(后复权) -> Qlib 二进制 + 动态池 + 溯源
-│   ├── train.py       # 第3步：Alpha158->LGB->IC+回测(滑点)+QDII排除+选ETF
-│   ├── predict.py     # 第4步：输出某交易日 TopK 选 ETF 清单（历史复盘）
-│   ├── decide.py      # ★ 每日 14:30 盘中决策：快照打分 vs 持仓 -> 买卖清单
-│   ├── universe_filter.py  # 动态 ETF 池过滤（上市时长/流动性/规模）
-│   ├── data_report.py # 数据血缘报告（拉取/校验汇总）
-│   ├── overlay.py     # （研究）波动率目标仓位层：组合级仓位调节 + 对照图
-│   ├── train_long.py / stress.py / turnover*.py / plot_*.py  # 研究脚本：长窗验证/压力测试/换手-成本网格/绘图
-│   └── utils.py       # 名称映射、代码转换、清单格式化
-├── backend/           # FastAPI 后端：管道命令包装成 HTTP 接口 + 读取 output/ 产物
-├── frontend/          # Vue3 + Vite Web 界面（总览/选ETF/决策/回测/管道）
-├── docs/              # 部署文档 DEPLOYMENT.md + 界面截图
-├── data/              # DuckDB 规范化真源 + 血缘（gitignore）
-├── raw_cache/         # 旧版原始行情缓存（只读兼容，gitignore）
-├── qlib_data/cn_data/ # 生成的 Qlib 数据（gitignore）
-├── models/            # 训练好的模型（gitignore）
-├── output/            # 预测/选ETF清单/回测报告/血缘/溯源（gitignore）
-└── requirements.txt
-```
+## 研究与执行规则
 
----
+- 标签：信号日 t 收盘后形成信息，预测 `open[t+21] / open[t+1] - 1`；训练/验证按标签结束日清除跨界样本。
+- 交易池：逐日上市观察期、20 日日均成交额、已公告规模和清盘日期；公告只有日期时，保守到其后一天才使用。缺规模时不放行。
+- 研究协议：`research_protocol.json` 固定候选、主模型、种子、资本、风险预算、压力情景和准入标准。修改代码或协议会重新冻结前瞻观察版本。
+- 生产训练：使用最近已经成熟的标签重新拟合；预处理器与模型一起保存，记录训练信号截止日、标签截止日和数据指纹。
+- 组合：TopK/持有期、单只与风格集中度、权益与总仓位、波动目标、换手及成交额参与率共同约束。未使用资金保留现金。
+- 执行：19:00 正式日线完成后生成下一交易日开盘订单；采用交易所日历。没有盘中拼接临时日线，也没有自动下单。
+- 账户：现金、份额、成本和成交ID账本；仅根据成交回报更新。旧 `--apply` 已停用。
 
 ## 快速开始
 
-环境已在 `.venv` 内装好（Python 3.10 + pyqlib 0.9.7 + tushare + akshare + duckdb）。所有命令在 `astock-qlib/` 目录下执行。
+在项目根目录和 Python 3.10+ 虚拟环境内运行：
 
 ```powershell
-# 激活虚拟环境
 .\.venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+pip install -r backend/requirements-dev.txt
 
-# 日线主源默认 AKShare（免费，无需 token）。如需切换 Tushare（≥5000 积分）：
-# 在 config.py 设 PRIMARY_BAR_SOURCE="tushare"，并配置 token（仅当前会话有效）
-$env:TUSHARE_TOKEN="你的token"
-
-# 第1步：抓取 ETF 数据到 DuckDB（含抽样交叉校验；增量）
-python -m src.fetch_data
-python -m src.fetch_data --force         # 全量重拉
-python -m src.fetch_data --no-validate   # 跳过 AKShare 抽样校验（更快）
-
-# 第2步：DuckDB(后复权) -> Qlib 二进制 + 动态池过滤 + 数据溯源
-python -m src.dump_qlib
-
-# 第3步：训练 + 回测(含滑点) + QDII溢价过滤 + 生成最新选 ETF 清单
+# 已有本地行情时，可直接进行完整历史研究与验收
 python -m src.train
 
-# 第4步：查看/复盘某日选 ETF 清单
-python -m src.predict                    # 最新交易日 TopK
-python -m src.predict --date 2025-06-30  # 指定历史某日复盘
-python -m src.predict --topk 10          # 只看前10
+# 开发冒烟，明确不能通过投资准入
+python -m src.research --quick
 
-# 每日盘中决策（交易日 14:30 运行；只操作ETF、QDII不参与）
-python -m src.decide                     # 补数+快照+打分 -> 买入/卖出/持有清单
-python -m src.decide --no-refresh --apply  # 确认执行后把结果写回持仓文件
+# 可选：导出逐日可交易区间到 Qlib，保留旧数据目录备份
+python -m src.dump_qlib
 
-# （可选）注册 Windows 任务计划，周一~周五 14:30 自动运行（周末脚本自行跳过）
-schtasks /Create /TN "ETF轮动1430决策" /SC WEEKLY /D MON,TUE,WED,THU,FRI /ST 14:30 `
-  /TR "pwsh -NoProfile -ExecutionPolicy Bypass -File e:\tcl_expert_llm\astock-qlib\run_decide_1430.ps1"
-
-# （可选）查看数据血缘报告：拉取/校验汇总
-python -m src.data_report
-
-# （可选）启动 Web 界面（FastAPI + Vue3，详见 docs/DEPLOYMENT.md）
-pip install -r backend\requirements.txt
-uvicorn backend.main:app --host 127.0.0.1 --port 8000   # 已 npm run build 时同端口托管前端
+# 自动化回归
+python -m unittest discover -s tests -v
 ```
 
-**日常使用**：
-- **每个交易日 14:30**：`src.decide` 自动/手动跑一次，看 `output/decision_YYYYMMDD.csv` 的买卖清单；按清单成交后用 `--apply` 更新持仓（持仓存在 `output/positions.json`，也可手工编辑对齐实盘）；
-- **约每月一次**：重跑 `fetch_data → dump_qlib → train` 重训模型（超过 `MODEL_STALE_DAYS` 天未重训，decide 会提示）；也可在 Web 界面「数据管道」页一键运行。
+默认 `PRIMARY_BAR_SOURCE="auto"`。有 `TUSHARE_TOKEN` 时使用现有 tinyshare 兼容主源；没有令牌时，自动使用腾讯不复权行情与新浪公司行动资料执行免费增量。`python -m src.fetch_data` 无需令牌即可更新本项目已有历史库。
 
----
+免费路径逐只核对最近60根重叠行情、成交量/金额单位、分红与拆分对旧因子的复现，以及交易日覆盖；全部境内标的通过后才从暂存库原子切换，并保存原库备份。腾讯后复权序列属于不同计算口径，不直接拼接；已有因子在最后重叠日精确衔接，避免舍入造成虚假收益。
 
-## Web 界面
+免费增量依赖本项目已有历史锚点，至少20根重叠日线；不支持用 `--force` 建立全历史。NAV沿用已有公告资料，完整历史标的与公司行动审计仍需来源证据。免费接口失败、口径冲突或覆盖不足时保留原库，明细写入 `output/data_updates/<run_id>/update_report.json`。公开免费接口直接访问，不读取或发送令牌。
 
-Vue3 + Element Plus + ECharts 前端 + FastAPI 后端，是 CLI 管道的可视化封装（不改动 `src/` 代码）：后端以子进程运行 fetch/dump/train/decide 并读取 `output/` 产物。详细部署见 [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)，前端说明见 [frontend/README.md](frontend/README.md)。
+需要改用原授权数据服务时，在本机配置对应授权：
 
-| 总览 | 回测分析 |
-|------|----------|
-| ![总览](docs/images/web-dashboard.png) | ![回测分析](docs/images/web-backtest.png) |
+```powershell
+$env:TUSHARE_TOKEN="你的数据服务授权码"
+python -m src.fetch_data
+```
 
-| 每日决策 | 数据管道 |
-|----------|----------|
-| ![每日决策](docs/images/web-decision.png) | ![数据管道](docs/images/web-pipeline.png) |
+AKShare 备选只允许明确的不复权东财日线并标记为 `akshare_em_raw`；不再将新浪前复权行情混入原始数据，也不再以因子 1 掩盖复权数据缺失。已有旧混合复权历史应先重建。
 
----
+## 模拟账户与订单
 
-## 如何看结果
+以下初始化仅适用于新的模拟账户。已有账户不能覆盖；可通过 `--holdings` 传入核对后的份额、平均成本和买入日期。实际账户缺少信息时须先对账，不能默认为空仓。
 
-**1. 预测质量（train 输出的 IC/RankIC）**
+```powershell
+python -m src.account init --cash 1000000
+python -m src.decide --paper
 
-| 指标 | 含义 | 参考 |
-|------|------|------|
-| RankIC均值 | 打分与未来收益的排序相关性 | >0.03 有一定轮动力，>0.05 较好 |
-| RankICIR | RankIC 的稳定性（均值/标准差） | 越高越稳定 |
+# 导入成交回报；同一execution_id重复导入不会重复记账
+python -m src.account apply-fills --decision output/decisions/决策ID.json --fills fills.json
 
-**2. 回测（train 输出 + `output/backtest_report.csv`）**
-- 策略累计收益 vs **等权 ETF 基准**：衡量轮动是否带来超额（选对板块的能力）
-- 策略累计收益 vs **买入持有沪深300ETF**：衡量能否跑赢"躺平持有大盘"
-- 超额年化、信息比率IR：>0 才有超额价值；最大回撤：能承受的最大浮亏
+# 当天19:00之后记录真实前瞻模拟观察，不能回填历史日期
+python -m src.forward
+```
 
-**3. 选 ETF 清单（`output/latest_picks.csv`）**
-- 按模型打分从高到低排序的 TopK 只 ETF
+`fills.json` 示例：
 
----
+```json
+[
+  {
+    "execution_id": "券商或模拟成交的唯一编号",
+    "decision_id": "决策JSON中的decision_id",
+    "order_id": "决策JSON中的order_id",
+    "symbol": "SH510300",
+    "side": "buy",
+    "quantity": 100,
+    "price": 4.0,
+    "fee": 0.2,
+    "executed_at": "2026-09-14T09:30:00+08:00"
+  }
+]
+```
 
-## ⚠️ 关于结果（务必阅读，坦诚说）
+示例日期不能直接作为已成交回报导入；必须以实际模拟/成交记录替换。部分成交可用不同成交ID累计记账，超额成交、资金不足、旧决策、重复ID内容冲突均会被拒绝。分红、份额折算和清盘回款通过 `src.account apply-actions --actions actions.json` 根据核对后的回单入账，不从复权因子猜测现金流。
 
-ETF 轮动比个股选股**更契合本管道**，但仍**不是稳赢的银弹**：
+定时脚本为 `run_decide_1900.ps1`。项目不会自动注册任务计划或连接券商。
 
-1. **信号仍偏弱**：纯技术指标的 RankIC 常只有 0.01~0.05，A股噪声大，仍有过拟合风险；
-2. **轮动会被打脸**：动量轮动在震荡/风格急切换时会"追高杀跌"来回挨打；
-3. **QDII 有偏差**：纳指/恒生 ETF 存在溢价折价与汇率/时差影响，回测按 A股 ±10% 近似处理。
+## 产物与界面
 
-本项目价值在于给你一套**正确、可扩展的 ETF 轮动管道**，而非一个现成的赚钱策略。
+每次研究写入独立目录 `output/runs/<run_id>/`，包含：
 
-### 已内置的稳健化改进
-1. **最小持有期保护**（`HOLD_THRESH=5`）：持有满 5 个交易日才可被换下，回测与每日决策共用；样本外收益 +21%→+49%、10bp 成本下仍存活，日换手 31.5%→17.1%；
-2. **跨资产防守**：池含十年国债/黄金，坏年份轮到防守资产；
-3. **walk-forward 滚动重训**：逐年用其之前数据训练、拼接样本外预测(2021–2026)再回测，是真正的 OOS 验证；
-4. **对标真实沪深300**：超额、信息比率、回撤都相对沪深300 计算。
+- 正式行情、净值和元数据快照，以及逐日可交易池。
+- 协议、代码副本与哈希、依赖版本、清除跨界后的折叠信息。
+- 三个候选的预测、账户净值和逐笔模拟成交；等权、约束后的股债金、沪深300ETF参考对照。
+- 压力测试、参数邻域、21 日时间块置信区间、投资准入结果。
+- 独立生产模型与预处理器、训练数据截止日。
 
-### 做过但默认关闭的风控实验（实证为负贡献）
-- **趋势过滤 v2**（`USE_TREND_FILTER=False`）：多窗口(20/60/120)迟滞投票判定下行后保序降权；样本外 -1.8% vs 无过滤 +21%——标的级择时在 A股急跌急涨行情下反而受损；
-- **波动率目标仓位**（`USE_VOL_TARGET=False`，`src/overlay.py`）：组合级仓位 = min(1, 目标波动/实现波动)，余钱停泊国债ETF；A股"高波动伴随上涨"，降仓踏空主升段，收益腰斩而回撤几乎无改善。
+只有成功完成的研究才会原子更新 `output/current_run.json`，后端和预测 CLI 根据同一指针读取结果。旧产物保留，不混入新报告。净值回撤采用峰谷比例，复合年化按实际日期计算；波动/IR 按252个交易日年化。
 
-### 可继续提升
-- 抓全/加长历史（多跑 `fetch_data`）；换/调模型（`config.LGB_PARAMS`）；加基本面或宏观因子；对 QDII 用更贴合的交易规则。
+```powershell
+cd frontend
+npm ci
+npm run build
+cd ..
+uvicorn backend.main:app --host 127.0.0.1 --port 8000
+```
 
----
+接口 `/api/acceptance` 返回完整验收报告，`/api/overview` 返回投资门禁和生产训练截止日。后端使用单 worker。界面中的“模拟决策”只调用 `src.decide --paper`，不会将建议当作成交。
 
-## 常用配置（`config.py`）
+## 投资准入与已知边界
 
-| 配置 | 说明 |
-|------|------|
-| `MARKET` | Qlib instruments 市场名（ETF 版为 `"etf"`） |
-| `START_DATE` | 数据起始日（默认 20160101；部分 ETF 上市晚，早期样本少属正常） |
-| `WALK_FORWARD` / `WF_TEST_YEARS` | 是否滚动重训 / 逐年样本外测试区间（默认 2021–2026） |
-| `USE_TREND_FILTER` / `TREND_WINDOWS` | 趋势过滤 v2 开关 / 多窗口投票（默认 **关** / 20,60,120；实证负贡献） |
-| `BENCHMARK_SYMBOL` | 回测主基准（默认 `BENCH300`=沪深300代理）；`EQW_BENCH_SYMBOL`=等权参考 |
-| `LABEL_HORIZON` | 预测未来多少交易日的收益（默认20≈1个月） |
-| `TRAIN/VALID/TEST_PERIOD` | 单次切分日期（仅 `WALK_FORWARD=False` 时用） |
-| `TOPK` / `N_DROP` | 持仓只数 / 每次最多换手只数（默认 6/1，回测与每日决策共用） |
-| `HOLD_THRESH` | 最小持有交易日数（默认 5：持有满才可被换下，防频繁调仓） |
-| `EXCLUDE_QDII` | **不考虑 QDII**（默认 True：纳指/恒生剔除出可交易池/信号/决策） |
-| `DECISION_RUN_TIME` / `POSITIONS_FILE` | 每日决策建议运行时刻(14:30) / 持仓状态文件 |
-| `OPEN_COST/CLOSE_COST` | 买入/卖出费率（ETF **免印花税**，默认 0.0003） |
-| `LGB_PARAMS` | LightGBM 超参 |
-| `PRIMARY_BAR_SOURCE` | 日线主源：`akshare`(默认，免费) / `tushare`(需≥5000积分) |
-| `SLIPPAGE_BPS` / `DEAL_PRICE` | 回测单边滑点(默认5bp，折入成本) / 成交价(close或vwap) |
-| `USE_PREMIUM_FILTER` / `PREMIUM_CAP` | QDII 溢价过滤开关 / 决策日溢价上限(默认3%) |
-| `USE_VOL_TARGET` / `VOL_TARGET_ANNUAL` | 波动率目标仓位层开关（默认 **关**） / 目标年化波动(15%) |
-| `USE_DYNAMIC_UNIVERSE` | 动态池过滤开关(上市时长/流动性/规模) |
-| `UNIVERSE_PIT_ENTRY` | 上市观察期 point-in-time 生效：每只 ETF 上市满 250 交易日(≈1年)后才进入可交易池，回测与实盘同口径 |
-| `VALIDATE_SAMPLE_N` | 每只 ETF 抽样交叉校验的交易日数 |
+默认研究资金100万元、目标波动15%、净值回撤验收线20%。这些是研究约束和准入标准，不能保证未来回撤不越线。
 
----
+投资准入同时检查历史扣费正收益、回撤预算、多数完整年度盈利、双倍滑点、全部预设执行压力情景的收益与回撤、相对简单动量的置信区间、参数邻域稳健性、行情时效、完整历史标的与公司行动审计，以及至少126个规则冻结后的真实模拟观察日。观察须连续、账户净值衔接、开盘执行且每笔订单至少完成95%，未成交订单不能算执行对齐。未通过时默认拒绝生成可执行建议；显式 `--paper` 可研究失败原因。
 
-## 数据说明
+当前数据来自人工挑选的ETF列表，完整清盘/退市覆盖尚不能证明。`python -m src.catalog 路径.csv` 可校验带来源的上市/清盘目录；核对后放入 `data/instrument_lifecycle.csv` 并补齐相关历史行情。导入目录不自动等于通过完整性审计。
 
-- **默认主源 AKShare**（`PRIMARY_BAR_SOURCE="akshare"`，免费）：优先东财 `fund_etf_hist_em`（不复权），**东财不可达时自动降级新浪 `fund_etf_hist_sina`（前复权，此时 adj_factor=1）**。
-- **备选主源/校验源 Tushare**（`PRIMARY_BAR_SOURCE="tushare"`）：`fund_daily`(不复权日线) + `fund_adj`(复权因子) + `fund_nav`(净值/规模) + `etf_basic`(元数据)；需 `TUSHARE_TOKEN`（≥5000 积分，`etf_basic` 需 8000，不足自动降级 `fund_basic`）。
-- **后复权**：dump 时 `hfq = 原价 × adj_factor`（历史稳定、回测可复现），分红自动并入全收益。
-- **QDII 溢价折价**：由 `fund_nav` 计算 `溢价=收盘价/单位净值-1`，决策日溢价 > `PREMIUM_CAP` 的 QDII 降权（`config.USE_PREMIUM_FILTER`）。
-- **本地存储**：DuckDB 规范化真源（`data/market.duckdb`），全量记录来源/拉取时间/数据版本/校验结果（血缘）；再 dump 成 Qlib 二进制。
-- 回测主基准仍为**沪深300**（`BENCH300`）+ 全ETF等权 `BENCH`；单只失败跳过、增量续拉。
+历史收益目前使用复权因子全收益代理；股数取整与成本限制已经建模，但复权单位隐含分红再投资，不能替代真实现金分红/份额折算逐项审计。实际账户已提供公司行动记账能力，历史公司行动数据缺失仍作为投资阻断项。
 
-## 已知限制
-- 部分行业 ETF 于 2019–2021 才上市，早期训练样本较少（Qlib 按各标的自身起止日处理）；且按上市观察期规则（`UNIVERSE_PIT_ENTRY`）上市满 250 个交易日后才进入候选池，首年只积累数据不参与交易；
-- 主基准沪深300以沪深300ETF代理(与指数略有跟踪误差)；QDII(纳指/恒生)溢价折价已由 NAV 计算并在决策日过滤，但回测撮合仍按 A股 ±10% 规则近似；
-- Qlib 训练时会打印若干 `CatBoost/XGB/PyTorch skipped` 与 gym 警告，**均无害**（未安装的可选模型）。
+2021–2026现有历史已参与研究，不冒充未使用的最终样本外数据。不得根据测试收益反复调整规则，再用同一测试区间宣称通过。
+
+最新实施与验收见 [投资准入改进计划](docs/INVESTMENT_READINESS_PLAN.md) 和 [v2.1.1验收报告](docs/INVESTMENT_READINESS_ACCEPTANCE.md)。上一阶段记录见 [量化优化计划](docs/QUANT_UPGRADE_PLAN.md)、[v2.0验收报告](docs/QUANT_ACCEPTANCE.md)。旧研究脚本和说明仅作兼容参考。
