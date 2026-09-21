@@ -40,7 +40,7 @@ import { onMounted, onUnmounted, reactive } from 'vue'
 import { Odometer, Tickets, TrendCharts, VideoPlay, Bell } from '@element-plus/icons-vue'
 import api from './api'
 
-const STEP_NAMES = { fetch: '抓取行情', dump: '转换数据', train: '训练回测', decide: '每日决策' }
+const STEP_NAMES = { fetch: '抓取行情', train: '训练回测', decide: '每日决策' }
 const stepName = (s) => STEP_NAMES[s] || s || ''
 
 const pipe = reactive({ running: false, current_step: null, error: null })

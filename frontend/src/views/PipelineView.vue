@@ -4,11 +4,11 @@
       <template #header>
         <span>管道步骤（与 README 快速开始一致）</span>
         <el-button class="run-all" type="primary" :disabled="status.running || submitting" @click="run(null)">
-          一键运行 fetch → dump → train
+          一键运行 fetch → train
         </el-button>
       </template>
       <el-row :gutter="16">
-        <el-col :span="6" v-for="s in steps" :key="s.key">
+        <el-col :span="8" v-for="s in steps" :key="s.key">
           <el-card shadow="hover">
             <div class="step-head">
               <span class="step-name">{{ s.name }}</span>
@@ -44,9 +44,8 @@ import api from '../api'
 
 const steps = [
   { key: 'fetch', name: '1. 抓取行情', module: 'src.fetch_data', desc: '自动选择授权或免费源；核对历史重叠与复权后增量更新' },
-  { key: 'dump', name: '2. 转换数据', module: 'src.dump_qlib', desc: 'DuckDB 转 Qlib 二进制 + 动态池过滤' },
-  { key: 'train', name: '3. 训练验收', module: 'src.train', desc: '滚动历史研究、对照与压力测试，生成独立生产模型' },
-  { key: 'decide', name: '4. 模拟决策', module: 'src.decide --paper', desc: '19:00 后用正式收盘数据，生成下一交易日开盘模拟订单' },
+  { key: 'train', name: '2. 训练验收', module: 'src.train', desc: '滚动历史研究、对照与压力测试，生成独立生产模型' },
+  { key: 'decide', name: '3. 模拟决策', module: 'src.decide --paper', desc: '19:00 后用正式收盘数据，生成下一交易日开盘模拟订单' },
 ]
 
 const status = reactive({ running: false, current_step: null, steps: {}, started_at: null, finished_at: null, error: null, log_tail: [] })

@@ -65,13 +65,13 @@ def _cached(path: Path, loader: Callable[[Path], object]):
 
 
 # ---------------------------------------------------------------------------
-# 数据溯源（dump 写、train 追加的 output/run_meta.json）
+# 数据溯源（train 经 src.runs.publish 写入版本化 run_meta.json）
 # ---------------------------------------------------------------------------
 _RUN_META_FILE = config.OUTPUT_DIR / "run_meta.json"
 
 
 def read_run_meta() -> dict:
-    """读 dump/train 写的数据版本与结构化指标；缺失/损坏返空 dict。"""
+    """读数据版本与结构化指标；缺失/损坏返空 dict。"""
     path = _artifact(_RUN_META_FILE)
     if not path.exists():
         return {}
@@ -159,7 +159,7 @@ def get_picks(date: str | None, topk: int) -> dict:
 
 # ---------------------------------------------------------------------------
 # 回测报告（train 写出的 backtest_report.csv，含 return/bench/cost 等列；
-# bench 为沪深300代理 BENCH300）
+# bench 为沪深300ETF对照 csi300_etf）
 # ---------------------------------------------------------------------------
 _REPORT_FILE = config.OUTPUT_DIR / "backtest_report.csv"
 
@@ -273,7 +273,7 @@ def latest_decision() -> dict | None:
 # ---------------------------------------------------------------------------
 def overview() -> dict:
     """口径与当前生产逻辑对齐：walk-forward 滚动重训 + 动态池/QDII 排除，
-    可交易数以 dump 落盘的 run_meta.json 为准（含动态池过滤结果）。"""
+    可交易数以版本化 run_meta.json 为准（含动态池过滤结果）。"""
     names = load_names()
     meta = read_run_meta()
     protocol = meta.get("protocol", {})
@@ -292,7 +292,6 @@ def overview() -> dict:
         "wf_train_start": config.WF_TRAIN_START,
         "wf_test_years": list(config.WF_TEST_YEARS),
         "exclude_qdii": config.EXCLUDE_QDII,
-        "use_trend_filter": config.USE_TREND_FILTER,
         "use_dynamic_universe": config.USE_DYNAMIC_UNIVERSE,
         "investment_gate": meta.get("investment_gate"),
         "production": meta.get("production"),

@@ -1,7 +1,7 @@
-"""管道任务管理：以子进程方式运行 src 的四步命令，捕获日志与训练指标。
+"""管道任务管理：以子进程方式运行 src 的三步命令，捕获日志与训练指标。
 
-- 命令与 README 快速开始完全一致：python -m src.fetch_data / dump_qlib / train
-- 同一时间只允许一个管道任务（训练会重写 qlib 数据与模型，不宜并发）
+- 命令与 README 快速开始完全一致：python -m src.fetch_data / train
+- 同一时间只允许一个管道任务（训练会重写模型与运行产物，不宜并发）
 - 每步完整日志写入 output/pipeline_logs/<step>.log；train 成功后解析
   其 stdout 中的 IC / 回测指标，落盘 output/train_metrics.json 供 API 读取
 """
@@ -28,13 +28,12 @@ METRICS_FILE = config.OUTPUT_DIR / "train_metrics.json"
 # step -> (中文名, 命令)
 STEPS: dict[str, tuple[str, list[str]]] = {
     "fetch": ("抓取行情", [sys.executable, "-m", "src.fetch_data"]),
-    "dump": ("转换Qlib数据", [sys.executable, "-m", "src.dump_qlib"]),
     "train": ("训练+回测", [sys.executable, "-m", "src.train"]),
     "decide": ("模拟决策", [sys.executable, "-m", "src.decide", "--paper"]),
 }
-STEP_ORDER = ["fetch", "dump", "train", "decide"]
-# 「一键运行」默认只跑数据+训练三步；decide 为每日盘中决策，按需单独触发
-DEFAULT_STEPS = ["fetch", "dump", "train"]
+STEP_ORDER = ["fetch", "train", "decide"]
+# 「一键运行」默认只跑数据+训练两步；decide 为每日盘中决策，按需单独触发
+DEFAULT_STEPS = ["fetch", "train"]
 
 
 class _State:
@@ -97,11 +96,7 @@ def _run_step(step: str) -> bool:
 _RE_IC = re.compile(r"^(IC均值|ICIR|RankIC均值|RankICIR)\s*[:：]\s*(\S+)")
 _RE_RANGE = re.compile(r"^区间[:：]\s*(\S+)\s*~\s*(\S+).*?持仓\s*(\d+)\s*只")
 _RE_STRAT = re.compile(r"策略累计收益\(扣费\)[:：]\s*(-?[\d.]+%)")
-_RE_BENCH300 = re.compile(r"沪深300累计[:：]\s*(-?[\d.]+%)")
 _RE_EQW = re.compile(r"等权ETF基准累计[:：]\s*(-?[\d.]+%)")
-_RE_EXCESS = re.compile(
-    r"超额年化\(vs沪深300\)[:：]\s*(-?[\d.]+%)\s*信息比率IR[:：]\s*(-?[\d.na]+)\s*超额最大回撤[:：]\s*(-?[\d.]+%)"
-)
 _RE_STRAT_ABS = re.compile(r"策略自身[:：]\s*年化\s*(-?[\d.]+%)\s*最大回撤\s*(-?[\d.]+%)")
 
 
@@ -121,14 +116,8 @@ def parse_train_metrics(text: str) -> dict:
             backtest.update({"start": m.group(1), "end": m.group(2), "topk": int(m.group(3))})
         elif m := _RE_STRAT.search(line):
             backtest["strategy_cum_return_pct"] = _pct(m.group(1))
-        elif m := _RE_BENCH300.search(line):
-            backtest["hs300_cum_return_pct"] = _pct(m.group(1))
         elif m := _RE_EQW.search(line):
             backtest["eqw_cum_return_pct"] = _pct(m.group(1))
-        elif m := _RE_EXCESS.search(line):
-            backtest["excess_annual_pct"] = _pct(m.group(1))
-            backtest["information_ratio"] = finite_float(m.group(2))
-            backtest["excess_max_drawdown_pct"] = _pct(m.group(3))
         elif m := _RE_STRAT_ABS.search(line):
             backtest["strategy_annual_pct"] = _pct(m.group(1))
             backtest["strategy_max_drawdown_pct"] = _pct(m.group(2))
@@ -237,7 +226,7 @@ def _worker(steps: list[str]) -> None:
 
 
 def start(steps: list[str] | None = None) -> list[str]:
-    """启动管道任务；steps 为空则按序运行 fetch->dump->train。已在运行则抛错。"""
+    """启动管道任务；steps 为空则按序运行 fetch->train。已在运行则抛错。"""
     steps = steps or DEFAULT_STEPS
     invalid = [s for s in steps if s not in STEPS]
     if invalid:

@@ -24,11 +24,10 @@ uvicorn backend.main:app --host 127.0.0.1 --port 8000
 ## 数据与研究更新
 
 1. 运行 `python -m src.fetch_data`。默认auto模式：本机有令牌使用原授权服务，没有令牌使用腾讯原价与新浪公司行动的免费增量。免费源逐只核对历史重叠、因子衔接和覆盖；通过后备份并原子切换数据库，不支持--force建立全历史。
-2. 需要Qlib兼容数据时运行 `python -m src.dump_qlib`，按历史逐日资格导出，并保留旧目录备份。
-3. 运行 `python -m src.train`，完成滚动训练、对照、压力、参数邻域和独立生产训练。仅成功完成后切换 `output/current_run.json`。
-4. 在 `/api/acceptance` 或总览查看投资准入结果。训练进程成功只表示研究运行完成，不表示投资准入通过。
+2. 运行 `python -m src.train`，完成滚动训练、对照、压力、参数邻域和独立生产训练。仅成功完成后切换 `output/current_run.json`。
+3. 在 `/api/acceptance` 或总览查看投资准入结果。训练进程成功只表示研究运行完成，不表示投资准入通过。
 
-每次研究写入 `output/runs/<run_id>/`，包含模型、预处理器、数据快照、代码副本、协议、哈希、报告及验收结果。CLI预测和Web从当前指针读取。Qlib导出单独写 `output/data_meta.json`；管道日志在 `output/pipeline_logs/`。
+每次研究写入 `output/runs/<run_id>/`，包含模型、预处理器、数据快照、代码副本、协议、哈希、报告及验收结果。CLI预测和Web从当前指针读取。管道日志在 `output/pipeline_logs/`。
 
 代码或协议变更后须重训验收，否则决策拒绝加载旧版本。仅重启后端无法替代重新验收。`src.research --quick` 为开发冒烟，不能通过投资门禁。
 

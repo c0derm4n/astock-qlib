@@ -158,7 +158,7 @@ class DataStore:
         return r[0].strftime("%Y-%m-%d") if r and r[0] is not None else None
 
     def load_index(self, ts_code: str) -> pd.DataFrame:
-        """指数日线（date 为 YYYY-MM-DD 字符串），供 dump 生成真实指数基准。"""
+        """指数日线（date 为 YYYY-MM-DD 字符串）。"""
         df = self.con.execute(
             "SELECT date, open, high, low, close, volume, amount, pct_chg "
             "FROM index_daily WHERE ts_code = ? ORDER BY date", [ts_code]).df()

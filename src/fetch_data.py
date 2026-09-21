@@ -140,7 +140,7 @@ def ingest(store: DataStore, codes: list[str], run_id: str, force: bool) -> None
         print(f"[{i}/{len(codes)}] {symbol}  bars={_tag(nb)} adj={_tag(na)} nav={_tag(nn)}", flush=True)
         time.sleep(0.05)
 
-    # 真实指数基准（沪深300 index_daily）：增量拉取，dump 时优先用它生成 BENCH300
+    # 真实指数基准（沪深300 index_daily）：增量拉取入库；该表当前无消费方
     idx_ts = getattr(config, "BENCHMARK_INDEX_TS", "")
     if idx_ts and "index_daily" not in skip_ifaces:
         mx = store.index_date_max(idx_ts)

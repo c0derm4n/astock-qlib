@@ -1,6 +1,6 @@
 # A股 ETF 轮动研究系统 v2.1.1
 
-以明确时间边界、固定研究协议和可复现产物为核心的 ETF 轮动研究与模拟决策系统。保留 Qlib 数据导出及 Alpha158 兼容研究接口，正式训练入口使用 14 项因果技术特征、简单动量/岭回归/浅层 LightGBM 对照。
+以明确时间边界、固定研究协议和可复现产物为核心的 ETF 轮动研究与模拟决策系统。正式训练入口使用 14 项因果技术特征、简单动量/岭回归/浅层 LightGBM 对照。
 
 **当前只能用于模拟研究。工程测试通过不代表策略投资准入通过；准入结果见每次运行的 acceptance.json 和 Web 总览。** 旧 README 的收益数字与盘中执行方式已归档，不再作为当前版本结论。
 
@@ -34,9 +34,6 @@ python -m src.train
 
 # 开发冒烟，明确不能通过投资准入
 python -m src.research --quick
-
-# 可选：导出逐日可交易区间到 Qlib，保留旧数据目录备份
-python -m src.dump_qlib
 
 # 自动化回归
 python -m unittest discover -s tests -v

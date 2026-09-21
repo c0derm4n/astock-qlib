@@ -93,7 +93,6 @@ def get_config() -> dict:
         "slippage_bps": protocol.get("slippage", config.SLIPPAGE_BPS) * 1e4,
         "deal_price": config.DEAL_PRICE,
         "exclude_qdii": config.EXCLUDE_QDII,
-        "use_trend_filter": config.USE_TREND_FILTER,
         "use_dynamic_universe": config.USE_DYNAMIC_UNIVERSE,
         "decision_run_time": config.DECISION_RUN_TIME,
     }
@@ -172,10 +171,10 @@ def acceptance() -> dict:
 
 
 # ---------------------------------------------------------------------------
-# 数据管道（对应 README 快速开始的四步命令）
+# 数据管道（对应 README 快速开始的三步命令）
 # ---------------------------------------------------------------------------
 class RunRequest(BaseModel):
-    steps: list[str] | None = None  # None/空 = 按序运行 fetch->dump->train
+    steps: list[str] | None = None  # None/空 = 按序运行 fetch->train
 
 
 @app.post("/api/pipeline/run")

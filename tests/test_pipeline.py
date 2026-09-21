@@ -35,16 +35,16 @@ class PipelineTests(unittest.TestCase):
 
     def test_launch_exception_marks_failure_and_skips_remaining_steps(self):
         with patch.object(pipeline, "_run_step", side_effect=FileNotFoundError("missing python")):
-            state = self.run_worker(["fetch", "dump", "train"])
-        self.assertEqual(state["steps"], {"fetch": "failed", "dump": "skipped", "train": "skipped"})
+            state = self.run_worker(["fetch", "train"])
+        self.assertEqual(state["steps"], {"fetch": "failed", "train": "skipped"})
         self.assertIn("missing python", state["error"])
         self.assertIn("FileNotFoundError", "\n".join(state["log_tail"]))
 
     def test_failed_step_stops_pipeline(self):
         with patch.object(pipeline, "_run_step", return_value=False) as run:
-            state = self.run_worker(["fetch", "dump"])
+            state = self.run_worker(["fetch", "decide"])
         run.assert_called_once_with("fetch")
-        self.assertEqual(state["steps"], {"fetch": "failed", "dump": "skipped"})
+        self.assertEqual(state["steps"], {"fetch": "failed", "decide": "skipped"})
 
     def test_train_metrics_survive_later_decision_failure(self):
         (self.root / "train.log").write_text("IC均值: 0.04\nRankICIR: nan\n", encoding="utf-8")

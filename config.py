@@ -13,27 +13,21 @@ from pathlib import Path
 # 路径
 # ----------------------------------------------------------------------------
 BASE_DIR = Path(__file__).resolve().parent
-QLIB_DATA_DIR = BASE_DIR / "qlib_data" / "cn_data"   # 生成的 Qlib 二进制数据
-RAW_CACHE_DIR = BASE_DIR / "raw_cache"                # AkShare 原始行情缓存(CSV)
 OUTPUT_DIR = BASE_DIR / "output"                      # 预测/选股清单/回测报告
-MODEL_DIR = BASE_DIR / "models"                       # 训练好的模型
 DATA_DIR = BASE_DIR / "data"                          # DuckDB 规范化真源 + 血缘
 
-for _d in (QLIB_DATA_DIR, RAW_CACHE_DIR, OUTPUT_DIR, MODEL_DIR, DATA_DIR):
+for _d in (OUTPUT_DIR, DATA_DIR):
     _d.mkdir(parents=True, exist_ok=True)
 
 # ----------------------------------------------------------------------------
 # 股票池与数据范围
 # ----------------------------------------------------------------------------
 # ETF 池：内置宽基 + 行业主题 ETF(universe.py)，不依赖成分股接口
-MARKET = "etf"             # 写入 Qlib instruments 的市场名(小写)
+MARKET = "etf"             # 市场标识(小写)，经 /api/config 暴露
 
-# 回测主基准：沪深300。dump 时生成 BENCH300 不可交易实例：优先用真沪深300指数
-# (Tushare index_daily，见 BENCHMARK_INDEX_TS)，无指数数据时回退沪深300ETF代理。
-# EQW_BENCH 为全ETF等权参考基准(衡量轮动alpha)。
-BENCHMARK_SYMBOL = "BENCH300"
+# 回测主基准：沪深300。生产口径输出沪深300ETF对照(csi300_etf)与真指数买入持有
+# 对照(csi300_index)，见 src/research.py；后者取本代码对应的指数日线。
 BENCHMARK_INDEX_TS = "000300.SH"   # 真实指数基准的 Tushare 代码
-EQW_BENCH_SYMBOL = "BENCH"
 
 START_DATE = "20160101"    # 抓取起始日 (YYYYMMDD)  ← 扩到2016，覆盖更长历史
 END_DATE = _dt.date.today().strftime("%Y%m%d")  # 抓取结束日=今天
@@ -59,16 +53,8 @@ WALK_FORWARD = True
 WF_TRAIN_START = "2016-01-01"
 WF_TEST_YEARS = [2021, 2022, 2023, 2024, 2025, 2026]  # 逐年滚动的样本外测试区间
 
-# 趋势/绝对动量过滤 v2：多窗口迟滞投票判定“下行”后做保序降权。
-# 2026-07 结论：walk-forward 样本外(2021~2026)对比，无过滤 +21.0%/回撤-25.2%，
-# v2过滤 -1.8%/-31.8%：标的级趋势择时在A股急跌急涨行情下为负贡献，默认关闭。
-USE_TREND_FILTER = False
-TREND_WINDOW = 60              # 兼容旧口径：plot_compare 的“等权+择时”规则基线仍用单窗口
-TREND_WINDOWS = [20, 60, 120]  # 多窗口动量投票（短/中/长期）
-TREND_VOTE_MIN = 2             # ≥N 个窗口处于下行状态才降权
-TREND_HYSTERESIS = 0.03        # 迟滞带：动量<-3% 进下行、>+3% 解除，之间维持原状态
-TREND_PENALTY = 1000.0         # 保序惩罚：统一减固定偏移，被罚组内仍保留模型排序
-TREND_EXEMPT_CLASSES = ("bond", "commodity")  # 债/金防守资产豁免趋势惩罚
+# 标的级趋势/绝对动量过滤：2026-07 结论后移出代码。walk-forward 样本外(2021~2026)
+# 对比无过滤 +21.0%/回撤-25.2%、v2过滤 -1.8%/-31.8%，在A股急跌急涨行情下为负贡献。
 
 # ----------------------------------------------------------------------------
 # 组合策略（回测）
@@ -157,21 +143,14 @@ PREMIUM_CAP = 0.03           # QDII 决策日溢价 > 3% 时降权，避免高�
 SLIPPAGE_BPS = 0.0005        # 单边滑点 5bp，折入交易成本
 DEAL_PRICE = "open"          # 收盘信号，下一交易日开盘执行
 
-# 旧Alpha158研究接口保留，但禁止自动绕过早停。正式入口使用research_protocol.json。
-ALLOW_FIXED_ROUNDS_RESEARCH = False
 MAX_DATA_STALE_DAYS = 7
 
 # ----------------------------------------------------------------------------
-# 波动率目标仓位层（风控从标的级趋势过滤改为组合级仓位调节）
-# 权益仓位 = min(1, 目标波动/实现波动)，其余停泊国债ETF；调仓扣双边成本。
-# 2026-07 结论：A股“高波动伴随上涨”(2024Q4/2025)，降仓踏空主升段，
-# 收益腰斩(21%→4~11%)而回撤几乎无改善，默认关闭（研究代码见 src.overlay）。
+# 组合级波动率目标仓位层：2026-07 结论后移出代码。A股“高波动伴随上涨”
+# (2024Q4/2025)，降仓踏空主升段，收益腰斩(21%→4~11%)而回撤几乎无改善。
+# 注意：research_protocol.json 的 vol_target 是组合级风险预算，仍在使用
+# (见 src/portfolio.py)，与本层是否启用无关。
 # ----------------------------------------------------------------------------
-USE_VOL_TARGET = False
-VOL_TARGET_ANNUAL = 0.15       # 目标年化波动率
-VOL_LOOKBACK = 20              # 实现波动率回看窗口(交易日)，用昨日及之前数据
-VOL_REBAL_BAND = 0.10          # 仓位缓冲带：目标仓位偏离>10个百分点才调(控换手)
-VOL_PARK_SYMBOL = "SH511260"   # 降仓时资金停泊：十年国债ETF
 
 # ----------------------------------------------------------------------------
 # 动态 ETF 池过滤
