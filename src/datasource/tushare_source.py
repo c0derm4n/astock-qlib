@@ -8,7 +8,7 @@ from __future__ import annotations
 import time
 
 import pandas as pd
-import tushare as ts
+import tinyshare as ts  # tinyshare 代理接口：API 与 tushare pro 完全兼容，仅换 import 与授权码
 
 import config
 import universe
@@ -27,18 +27,18 @@ def _api():
     return _pro
 
 
-def _retry(fn, tries: int = 3, pause: float = 0.4):
+def _retry(fn, tries: int = 8, pause: float = 0.8):
     last = None
-    for _ in range(tries):
+    for attempt in range(tries):
         try:
             return fn()
-        except Exception as e:  # 限频/网络抖动，退避重试
+        except Exception as e:  # 限频/网络抖动/代理网关502，退避重试
             msg = str(e)
             # 积分/权限不足重试无意义，直接抛出（上层会标记该接口跳过）
             if any(k in msg for k in ("权限", "积分", "permission", "没有访问")):
                 raise
             last = e
-            time.sleep(pause)
+            time.sleep(pause * (attempt + 1))  # 线性退避，缓解代理间歇性 502（tinyshare 网关较频繁）
     raise last
 
 
@@ -134,6 +134,31 @@ def fetch_nav(code: str, start: str, end: str) -> pd.DataFrame | None:
         "net_asset": pd.to_numeric(raw["net_asset"], errors="coerce"),
     })
     return out.dropna(subset=["nav_date"]).sort_values("nav_date").reset_index(drop=True)
+
+
+def fetch_index(ts_code: str, start: str, end: str) -> pd.DataFrame | None:
+    """index_daily 指数日线 -> 规范化 bars（真实指数基准，如沪深300 000300.SH）。"""
+    frames = []
+    for s, e in _year_chunks(start, end):
+        df = _retry(lambda: _api().index_daily(ts_code=ts_code, start_date=s, end_date=e))
+        if df is not None and not df.empty:
+            frames.append(df)
+        time.sleep(0.12)
+    if not frames:
+        return None
+    raw = pd.concat(frames).drop_duplicates("trade_date")
+    out = pd.DataFrame({
+        "ts_code": ts_code,
+        "date": pd.to_datetime(raw["trade_date"]).dt.strftime("%Y-%m-%d"),
+        "open": raw["open"].astype(float),
+        "high": raw["high"].astype(float),
+        "low": raw["low"].astype(float),
+        "close": raw["close"].astype(float),
+        "volume": raw["vol"].astype(float),            # 手
+        "amount": raw["amount"].astype(float) * 1000.0,  # 千元 -> 元
+        "pct_chg": raw["pct_chg"].astype(float),        # %
+    })
+    return out.sort_values("date").reset_index(drop=True)
 
 
 def _meta_raw() -> pd.DataFrame | None:

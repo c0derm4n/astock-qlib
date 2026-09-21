@@ -70,7 +70,9 @@ def _date_range(df: pd.DataFrame, col: str) -> tuple[str | None, str | None]:
 def ingest(store: DataStore, codes: list[str], run_id: str, force: bool) -> None:
     """拉取 bars(主源) + adj + nav，写入 DuckDB 并记录血缘。"""
     use_ak_bars = config.PRIMARY_BAR_SOURCE == "akshare"
-    bar_source_name = "akshare" if use_ak_bars else "tushare"
+    if not use_ak_bars and not config.TUSHARE_TOKEN:
+        raise RuntimeError("Tushare主源未配置TUSHARE_TOKEN，停止抓取；不能把全部跳过报告为成功")
+    bar_source_name = "akshare_em_raw" if use_ak_bars else "tushare"
     end = config.END_DATE
     logs: list[dict] = []
     ok = fail = 0
@@ -93,6 +95,8 @@ def ingest(store: DataStore, codes: list[str], run_id: str, force: bool) -> None
                     store.upsert_adj(_stamp(df, source, run_id))
                 elif iface == "fund_nav":
                     store.upsert_nav(_stamp(df, source, run_id))
+                elif iface == "index_daily":
+                    store.upsert_index(_stamp(df, source, run_id))
             d0, d1 = _date_range(df, date_col)
             logs.append(dict(run_id=run_id, source=source, interface=iface, symbol=symbol,
                              rows=n, date_min=d0, date_max=d1, fetch_time=_now(),
@@ -111,7 +115,7 @@ def ingest(store: DataStore, codes: list[str], run_id: str, force: bool) -> None
     print(f"开始拉取（每只 3 个接口，逐只打印进度）…")
     # 无 token 时跳过仅 Tushare 提供的接口（NAV；若主源也是 tushare 则一并跳过）
     if not config.TUSHARE_TOKEN:
-        skip_ifaces.add("fund_nav")
+        skip_ifaces.update({"fund_nav", "index_daily"})
         if not use_ak_bars:
             skip_ifaces.update({"fund_daily", "fund_adj"})
         print("提示：未设置 TUSHARE_TOKEN，已跳过依赖 Tushare 的接口（akshare 主源自带后复权）")
@@ -123,7 +127,7 @@ def ingest(store: DataStore, codes: list[str], run_id: str, force: bool) -> None
         nb = _do("fund_daily", bar_source_name,
                  lambda: (ak_src.fetch_bars(code, start, end) if use_ak_bars
                           else ts_src.fetch_bars(code, start, end)), symbol, "date")
-        adj_source = "akshare" if use_ak_bars else "tushare"
+        adj_source = "akshare_em_raw" if use_ak_bars else "tushare"
         na = _do("fund_adj", adj_source,
                  lambda: (ak_src.fetch_adj(code, start, end) if use_ak_bars
                           else ts_src.fetch_adj(code, start, end)), symbol, "date")
@@ -135,6 +139,15 @@ def ingest(store: DataStore, codes: list[str], run_id: str, force: bool) -> None
             return "skip" if x == -1 else ("fail" if x == -2 else str(x))
         print(f"[{i}/{len(codes)}] {symbol}  bars={_tag(nb)} adj={_tag(na)} nav={_tag(nn)}", flush=True)
         time.sleep(0.05)
+
+    # 真实指数基准（沪深300 index_daily）：增量拉取，dump 时优先用它生成 BENCH300
+    idx_ts = getattr(config, "BENCHMARK_INDEX_TS", "")
+    if idx_ts and "index_daily" not in skip_ifaces:
+        mx = store.index_date_max(idx_ts)
+        i_start = config.START_DATE if (force or not mx) else mx.replace("-", "")
+        ni = _do("index_daily", "tushare",
+                 lambda: ts_src.fetch_index(idx_ts, i_start, end), idx_ts, "date")
+        print(f"指数基准 {idx_ts}：rows={ni if ni >= 0 else 'skip/fail'}", flush=True)
 
     store.log_ingest(logs)
     print(f"\n拉取完成：日线成功 {ok}，失败 {fail}（明细：python -m src.data_report）")
@@ -251,6 +264,13 @@ def main() -> None:
     parser.add_argument("--force", action="store_true", help="全量重拉(忽略增量)")
     parser.add_argument("--no-validate", action="store_true", help="跳过 AKShare 抽样校验")
     args = parser.parse_args()
+
+    if config.PRIMARY_BAR_SOURCE == "free" or (config.PRIMARY_BAR_SOURCE == "auto" and not config.TUSHARE_TOKEN):
+        if args.force:
+            raise SystemExit("免费路径仅支持有历史锚点的校验增量，不能使用--force伪造全历史")
+        from src.free_data import run_free_update
+        run_free_update()
+        return
 
     codes = get_universe()
     print(f"ETF池(宽基+行业主题+防守)：共 {len(codes)} 只；日线主源={config.PRIMARY_BAR_SOURCE}")

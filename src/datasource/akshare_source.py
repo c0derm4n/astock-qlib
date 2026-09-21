@@ -1,10 +1,6 @@
-"""AKShare 数据源：ETF 日线（东财不复权优先，不可达时降级新浪前复权）+ 复权因子。
+"""AKShare兼容源：仅接受东财明确不复权日线；缺因子时失败。
 
-东财 fund_etf_hist_em 在部分网络环境会连接被重置(RemoteDisconnected)；本模块自动
-降级到新浪 fund_etf_hist_sina（前复权），保证 akshare 主源可用：
-- 东财可达：fetch_bars 返回不复权原价；fetch_adj 由后复权/不复权反推因子（真后复权）。
-- 东财不可达：fetch_bars 返回新浪前复权序列；fetch_adj 记 adj_factor=1（价格已复权）。
-两种情况下 dump 的 hfq = 价格 × adj_factor 都得到一致可用的复权序列。
+自动免费增量使用free_source模块的腾讯原价和新浪公司行动，不拼接未知复权价格。
 """
 from __future__ import annotations
 
@@ -71,7 +67,7 @@ def _sina_bars(symbol: str, start: str, end: str) -> pd.DataFrame | None:
 
 
 def fetch_bars(code: str, start: str, end: str, tries: int = 3) -> pd.DataFrame | None:
-    """不复权原价（东财）优先；东财不可达时降级新浪前复权。"""
+    """只接受东财不复权原价，接口失败时明确报错。"""
     global _EM_DOWN
     symbol = to_qlib_symbol(code)
     if symbol is None:
@@ -89,17 +85,12 @@ def fetch_bars(code: str, start: str, end: str, tries: int = 3) -> pd.DataFrame 
             except Exception:
                 time.sleep(0.4)
         _EM_DOWN = True
-        print("  [降级] 东财不可达，改用新浪(前复权)源")
-    out = _sina_bars(symbol, start, end)
-    if out is None or out.empty:
-        return None
-    _LAST_SRC[symbol] = "sina"
-    out.insert(0, "symbol", symbol)
-    return out
+        print("  东财不可达：停止该原始日线接口，禁止混入新浪前复权数据")
+    raise RuntimeError("不复权日线源不可用；前复权新浪序列不能写入bars_raw")
 
 
 def fetch_adj(code: str, start: str, end: str, tries: int = 3) -> pd.DataFrame | None:
-    """复权因子。东财源：hfq/raw 反推（真后复权）；新浪源：因子=1（价格已前复权）。"""
+    """东财hfq/raw兼容因子；禁止缺数据时默认1。"""
     symbol = to_qlib_symbol(code)
     if symbol is None:
         return None
@@ -111,7 +102,7 @@ def fetch_adj(code: str, start: str, end: str, tries: int = 3) -> pd.DataFrame |
         return pd.DataFrame({"symbol": symbol, "date": raw["date"].to_numpy(), "adj_factor": 1.0})
 
     if _LAST_SRC.get(symbol) == "sina":
-        return _ones()
+        raise ValueError("前复权价格不能作为原始日线")
 
     ak_code = to_ak_code(code)
     hf = None
@@ -123,13 +114,13 @@ def fetch_adj(code: str, start: str, end: str, tries: int = 3) -> pd.DataFrame |
         except Exception:
             time.sleep(0.4)
     if hf is None or hf.empty:
-        return _ones()  # 拿不到后复权则退化为因子=1（等价不做分红调整）
+        raise RuntimeError("后复权因子不可用，禁止默认因子为1")
     hf = hf.rename(columns={"日期": "date", "收盘": "hfq_close"})
     hf["date"] = pd.to_datetime(hf["date"]).dt.strftime("%Y-%m-%d")
     m = raw[["date", "close"]].merge(hf[["date", "hfq_close"]], on="date")
     m = m[m["close"] > 0]
     if m.empty:
-        return _ones()
+        raise RuntimeError("复权因子与原始日线日期不匹配")
     return pd.DataFrame({
         "symbol": symbol,
         "date": m["date"].to_numpy(),

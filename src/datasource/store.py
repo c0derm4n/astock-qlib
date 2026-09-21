@@ -28,6 +28,10 @@ _SCHEMA = [
         symbol VARCHAR, nav_date DATE, ann_date DATE, unit_nav DOUBLE, accum_nav DOUBLE,
         adj_nav DOUBLE, net_asset DOUBLE, source VARCHAR, fetch_time TIMESTAMP,
         data_version VARCHAR, PRIMARY KEY(symbol, nav_date))""",
+    """CREATE TABLE IF NOT EXISTS index_daily(
+        ts_code VARCHAR, date DATE, open DOUBLE, high DOUBLE, low DOUBLE, close DOUBLE,
+        volume DOUBLE, amount DOUBLE, pct_chg DOUBLE, source VARCHAR,
+        fetch_time TIMESTAMP, data_version VARCHAR, PRIMARY KEY(ts_code, date))""",
     """CREATE TABLE IF NOT EXISTS ingest_log(
         run_id VARCHAR, source VARCHAR, interface VARCHAR, symbol VARCHAR, rows INTEGER,
         date_min VARCHAR, date_max VARCHAR, fetch_time TIMESTAMP, data_version VARCHAR,
@@ -41,10 +45,11 @@ _SCHEMA = [
 class DataStore:
     """DuckDB 单文件库封装（建表 + upsert + 血缘 + 派生读取）。"""
 
-    def __init__(self, path=None):
-        self.con = duckdb.connect(str(path or config.DUCKDB_PATH))
-        for ddl in _SCHEMA:
-            self.con.execute(ddl)
+    def __init__(self, path=None, read_only=False):
+        self.con = duckdb.connect(str(path or config.DUCKDB_PATH), read_only=read_only)
+        if not read_only:
+            for ddl in _SCHEMA:
+                self.con.execute(ddl)
 
     def __enter__(self) -> "DataStore":
         return self
@@ -57,7 +62,7 @@ class DataStore:
 
     # ------------------------------------------------------------------ upsert
     def _upsert(self, table: str, df: pd.DataFrame, keys, cast_map=None) -> None:
-        """DELETE 命中主键 + INSERT（等价 upsert）。cast_map: {列: SQL类型}。"""
+        """事务内 DELETE + INSERT；插入失败时保留原数据。cast_map: {列: SQL类型}。"""
         if df is None or len(df) == 0:
             return
         cast_map = cast_map or {}
@@ -67,15 +72,23 @@ class DataStore:
             return f"CAST({c} AS {cast_map[c]}) AS {c}" if c in cast_map else c
 
         self.con.register("_tmp", df)
-        keysel = ", ".join(expr(k) for k in keys)
-        self.con.execute(
-            f"DELETE FROM {table} WHERE ({', '.join(keys)}) IN (SELECT {keysel} FROM _tmp)"
-        )
-        self.con.execute(
-            f"INSERT INTO {table} ({', '.join(cols)}) "
-            f"SELECT {', '.join(expr(c) for c in cols)} FROM _tmp"
-        )
-        self.con.unregister("_tmp")
+        try:
+            self.con.execute("BEGIN TRANSACTION")
+            try:
+                keysel = ", ".join(expr(k) for k in keys)
+                self.con.execute(
+                    f"DELETE FROM {table} WHERE ({', '.join(keys)}) IN (SELECT {keysel} FROM _tmp)"
+                )
+                self.con.execute(
+                    f"INSERT INTO {table} ({', '.join(cols)}) "
+                    f"SELECT {', '.join(expr(c) for c in cols)} FROM _tmp"
+                )
+                self.con.execute("COMMIT")
+            except Exception:
+                self.con.execute("ROLLBACK")
+                raise
+        finally:
+            self.con.unregister("_tmp")
 
     def _append(self, table: str, df: pd.DataFrame, cast_map=None) -> None:
         if df is None or len(df) == 0:
@@ -87,11 +100,13 @@ class DataStore:
             return f"CAST({c} AS {cast_map[c]}) AS {c}" if c in cast_map else c
 
         self.con.register("_tmp", df)
-        self.con.execute(
-            f"INSERT INTO {table} ({', '.join(cols)}) "
-            f"SELECT {', '.join(expr(c) for c in cols)} FROM _tmp"
-        )
-        self.con.unregister("_tmp")
+        try:
+            self.con.execute(
+                f"INSERT INTO {table} ({', '.join(cols)}) "
+                f"SELECT {', '.join(expr(c) for c in cols)} FROM _tmp"
+            )
+        finally:
+            self.con.unregister("_tmp")
 
     def upsert_bars(self, df: pd.DataFrame) -> None:
         self._upsert("bars_raw", df, keys=["symbol", "date"],
@@ -104,6 +119,10 @@ class DataStore:
     def upsert_nav(self, df: pd.DataFrame) -> None:
         self._upsert("nav", df, keys=["symbol", "nav_date"],
                      cast_map={"nav_date": "DATE", "ann_date": "DATE", "fetch_time": "TIMESTAMP"})
+
+    def upsert_index(self, df: pd.DataFrame) -> None:
+        self._upsert("index_daily", df, keys=["ts_code", "date"],
+                     cast_map={"date": "DATE", "fetch_time": "TIMESTAMP"})
 
     def upsert_meta(self, df: pd.DataFrame) -> None:
         self._upsert("etf_meta", df, keys=["symbol"],
@@ -132,6 +151,21 @@ class DataStore:
         return [r[0] for r in self.con.execute(
             "SELECT DISTINCT symbol FROM bars_raw ORDER BY symbol").fetchall()]
 
+    def index_date_max(self, ts_code: str) -> str | None:
+        r = self.con.execute(
+            "SELECT max(date) FROM index_daily WHERE ts_code = ?", [ts_code]
+        ).fetchone()
+        return r[0].strftime("%Y-%m-%d") if r and r[0] is not None else None
+
+    def load_index(self, ts_code: str) -> pd.DataFrame:
+        """指数日线（date 为 YYYY-MM-DD 字符串），供 dump 生成真实指数基准。"""
+        df = self.con.execute(
+            "SELECT date, open, high, low, close, volume, amount, pct_chg "
+            "FROM index_daily WHERE ts_code = ? ORDER BY date", [ts_code]).df()
+        if not df.empty:
+            df["date"] = pd.to_datetime(df["date"]).dt.strftime("%Y-%m-%d")
+        return df
+
     def load_bars_raw(self, symbols=None) -> pd.DataFrame:
         """不复权原始日线（date 为 YYYY-MM-DD 字符串），供交叉校验/流动性统计。"""
         where = ""
@@ -159,7 +193,7 @@ class DataStore:
             params = list(symbols)
         sql = f"""
             SELECT b.symbol, b.date, b.open, b.high, b.low, b.close,
-                   b.volume, b.pct_chg, COALESCE(a.adj_factor, 1.0) AS adj
+                   b.volume, b.amount, b.pct_chg, a.adj_factor AS adj
             FROM bars_raw b
             LEFT JOIN adj_factor a ON b.symbol = a.symbol AND b.date = a.date
             {where}
@@ -169,6 +203,8 @@ class DataStore:
         out: dict[str, pd.DataFrame] = {}
         if df.empty:
             return out
+        if df["adj"].isna().any() or (df["adj"] <= 0).any():
+            raise ValueError("复权因子缺失/无效，停止导出；请补齐因子，禁止默认为1")
         df["date"] = pd.to_datetime(df["date"]).dt.strftime("%Y-%m-%d")
         for sym, g in df.groupby("symbol"):
             g = g.sort_values("date").reset_index(drop=True)
@@ -179,7 +215,7 @@ class DataStore:
             o["low"] = g["low"].to_numpy() * adj
             o["close"] = g["close"].to_numpy() * adj
             o["volume"] = g["volume"].to_numpy()
-            o["vwap"] = (o["high"] + o["low"] + o["close"]) / 3.0
+            o["vwap"] = (g["amount"] / (g["volume"] * 100).replace(0, float("nan"))).to_numpy() * adj
             o["factor"] = 1.0
             o["change"] = g["pct_chg"].to_numpy() / 100.0
             out[str(sym)] = o
@@ -200,21 +236,24 @@ class DataStore:
             f"SELECT symbol, date, close FROM bars_raw {wsql} ORDER BY symbol, date", params
         ).df()
         navs = self.con.execute(
-            f"SELECT symbol, nav_date, unit_nav FROM nav {wsql} ORDER BY symbol, nav_date", params
+            f"SELECT symbol, nav_date, ann_date, unit_nav FROM nav {wsql} ORDER BY symbol, nav_date", params
         ).df()
         if bars.empty or navs.empty:
             return pd.Series(dtype="float64", name="premium")
         bars["date"] = pd.to_datetime(bars["date"])
         navs["nav_date"] = pd.to_datetime(navs["nav_date"])
+        navs["ann_date"] = pd.to_datetime(navs["ann_date"])
+        navs = navs.dropna(subset=["ann_date", "nav_date"])
+        navs = navs[navs["ann_date"] >= navs["nav_date"]]
         parts = []
         for sym, gb in bars.groupby("symbol"):
             gn = navs[navs["symbol"] == sym]
             if gn.empty:
                 continue
             gb = gb.sort_values("date")
-            gn = gn.sort_values("nav_date")
-            m = pd.merge_asof(gb, gn[["nav_date", "unit_nav"]], left_on="date",
-                              right_on="nav_date", direction="backward")
+            gn = gn.sort_values(["ann_date", "nav_date"]).drop_duplicates("ann_date", keep="last")
+            m = pd.merge_asof(gb, gn[["ann_date", "unit_nav"]], left_on="date",
+                              right_on="ann_date", direction="backward", allow_exact_matches=False)
             m = m[(m["unit_nav"] > 0)]
             if start is not None:
                 m = m[m["date"] >= pd.Timestamp(start)]
@@ -245,13 +284,13 @@ class DataStore:
 
     def latest_net_asset(self, as_of=None) -> dict[str, float]:
         """各标的 <= as_of 的最新非空 net_asset（元），用于规模过滤。"""
-        where = "WHERE net_asset IS NOT NULL"
+        where = "WHERE net_asset IS NOT NULL AND ann_date IS NOT NULL AND ann_date >= nav_date"
         params: list = []
         if as_of:
-            where += " AND nav_date <= ?"
-            params = [as_of]
+            where += " AND nav_date <= ? AND ann_date < ?"
+            params = [as_of, as_of]
         df = self.con.execute(
-            f"SELECT symbol, net_asset, nav_date FROM nav {where} ORDER BY symbol, nav_date",
+            f"SELECT symbol, net_asset, nav_date FROM nav {where} ORDER BY symbol, ann_date, nav_date",
             params).df()
         out: dict[str, float] = {}
         for _, r in df.iterrows():
