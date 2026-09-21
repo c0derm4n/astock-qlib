@@ -21,7 +21,7 @@ import pandas as pd
 
 import config
 from src.datasource import DataStore
-from src.universe_filter import build_dynamic_universe
+from src.universe_filter import universe_from_store, eligibility_intervals
 import universe
 from src.utils import symbol_to_code
 
@@ -78,7 +78,7 @@ def write_calendar(calendar: list[str]) -> None:
 
 
 def write_instruments(data: dict[str, pd.DataFrame], tradable: set[str],
-                      entry_dates: dict[str, str] | None = None) -> None:
+                      entry_dates: dict[str, str] | None = None, intervals=None) -> None:
     """all.txt 含全部(+基准实例，供 benchmark 读取)；<market>.txt 仅含动态可交易 ETF。
 
     entry_dates：{符号 -> 首个可交易日}，上市观察期 point-in-time 生效时把
@@ -89,8 +89,9 @@ def write_instruments(data: dict[str, pd.DataFrame], tradable: set[str],
     for symbol, df in data.items():
         all_lines.append(f"{symbol}\t{df['date'].iloc[0]}\t{df['date'].iloc[-1]}")
         if not symbol.startswith("BENCH") and symbol in tradable:
-            start = (entry_dates or {}).get(symbol, df["date"].iloc[0])
-            tradable_lines.append(f"{symbol}\t{start}\t{df['date'].iloc[-1]}")
+            periods = intervals.get(symbol, []) if intervals is not None else [((entry_dates or {}).get(symbol, df["date"].iloc[0]), df["date"].iloc[-1])]
+            for start, end in periods:
+                tradable_lines.append(f"{symbol}\t{start}\t{end}")
     (inst_dir / "all.txt").write_text("\n".join(all_lines) + "\n", encoding="utf-8")
     (inst_dir / f"{config.MARKET}.txt").write_text("\n".join(tradable_lines) + "\n", encoding="utf-8")
 
@@ -127,85 +128,65 @@ def main() -> None:
 
 
 def run_dump(store: DataStore, data: dict[str, pd.DataFrame]) -> None:
-    """把内存中的后复权日线写成 Qlib 数据（动态池 + QDII 排除 + 基准 + 溯源）。
+    """完整历史逐日池导出；先生成新目录再切换，保留上一版数据备份。"""
+    import uuid
+    from backend.artifacts import write_json_atomic
 
-    供 main()与 src.decide(盘中追加今日临时K线后重写)复用。"""
-    # 动态可交易池（Phase 5）：上市时长/流动性/规模过滤；关闭则全部可交易
-    if getattr(config, "USE_DYNAMIC_UNIVERSE", False):
-        tradable = set(build_dynamic_universe(store))
-        print(f"动态池：{len(tradable)}/{len([s for s in data if not s.startswith('BENCH')])} 只通过过滤")
-    else:
-        tradable = {s for s in data if not s.startswith("BENCH")}
-
-    # 只操作非 QDII 的 ETF：QDII(纳指/恒生等)彻底剔除出可交易池(etf.txt)，
-    # 数据仍保留在 all.txt 供研究；训练/回测/每日决策都不再见到 QDII。
-    if getattr(config, "EXCLUDE_QDII", False):
-        qdii = {s for s in tradable
-                if universe.get_asset_class(symbol_to_code(s)) == "qdii"}
-        if qdii:
-            tradable -= qdii
-            print(f"排除 QDII {len(qdii)} 只(不参与交易)：{', '.join(sorted(qdii))}")
-
-    # 上市观察期 point-in-time 生效：第 UNIVERSE_MIN_LIST_DAYS+1 个交易日才可交易，
-    # 回测中次新 ETF 首年只积累数据不参与候选，与实盘动态池同口径（无未来函数）。
-    # 首个bar紧贴抓取起点 START_DATE 的是被窗口截断的存量老 ETF(真实上市更早)，豁免
-    entry_dates: dict[str, str] = {}
-    if getattr(config, "UNIVERSE_PIT_ENTRY", False):
-        lag = int(config.UNIVERSE_MIN_LIST_DAYS)
-        cutoff = pd.Timestamp(config.START_DATE) + pd.Timedelta(days=14)
-        delayed = []
-        for sym in sorted(tradable):
-            df = data.get(sym)
-            if df is None or df.empty:
-                continue
-            if pd.Timestamp(df["date"].iloc[0]) <= cutoff:
-                continue  # 存量老 ETF：数据起点=抓取起点，观察期早已满足
-            if len(df) <= lag:
-                tradable.discard(sym)  # 观察期未满，整体不可交易(与动态池次新剔除一致)
-                continue
-            entry_dates[sym] = str(df["date"].iloc[lag])
-            delayed.append(f"{sym}({df['date'].iloc[0]}上市→{entry_dates[sym]}入池)")
-        if delayed:
-            print(f"上市观察期({lag}交易日)：{len(delayed)} 只延迟入池")
-            for line in delayed:
-                print(f"  - {line}")
-
-    # 清空旧的 features，避免残留(calendar 变化会导致下标错位)
-    feat_root = config.QLIB_DATA_DIR / "features"
-    if feat_root.exists():
-        shutil.rmtree(feat_root)
-
+    frame = universe_from_store(store)
+    intervals = eligibility_intervals(frame)
     calendar = build_calendar(data)
-    print(f"全局日历：{len(calendar)} 个交易日（{calendar[0]} ~ {calendar[-1]}）")
-
-    # 基准实例（不可交易，供回测对标）：
-    #   BENCH    = 全ETF等权指数（衡量行业/风格轮动alpha）
-    #   BENCH300 = 沪深300（以沪深300ETF代理，衡量能否跑赢大盘）
-    data[config.EQW_BENCH_SYMBOL] = build_benchmark(data, calendar)
-    if "SH510300" in data:
+    if not calendar:
+        raise ValueError("没有有效交易日")
+    latest = frame[frame["date"] == pd.Timestamp(calendar[-1])]
+    current = sorted(latest.loc[latest["eligible"], "symbol"])
+    # 全池等权仅为历史兼容展示；经成本/历史资格对齐的基准由research统一生成。
+    eligible = frame.pivot(index="date", columns="symbol", values="eligible")
+    prices = pd.DataFrame({sym: df.set_index("date")["close"] for sym, df in data.items()})
+    prices.index = pd.to_datetime(prices.index)
+    returns = prices.pct_change(fill_method=None).where(eligible.shift(1, fill_value=False)).mean(axis=1).fillna(0)
+    benchmark = pd.DataFrame({"date": returns.index.strftime("%Y-%m-%d"), "close": (1000*(1+returns).cumprod()).to_numpy()})
+    for field in ("open", "high", "low", "vwap"):
+        benchmark[field] = benchmark["close"]
+    benchmark["volume"], benchmark["factor"], benchmark["change"] = 0.0, 1.0, returns.to_numpy()
+    data[config.EQW_BENCH_SYMBOL] = benchmark[["date"] + FIELDS]
+    index = store.load_index(getattr(config, "BENCHMARK_INDEX_TS", "000300.SH"))
+    if not index.empty:
+        index = index[index["date"].isin(calendar)].copy()
+        index["vwap"] = index["amount"] / (index["volume"] * 100).replace(0, float("nan"))
+        index["factor"], index["change"] = 1., index["pct_chg"] / 100
+        data[config.BENCHMARK_SYMBOL] = index[["date"] + FIELDS]
+    elif "SH510300" in data:
         data[config.BENCHMARK_SYMBOL] = data["SH510300"].copy()
+    destination = config.QLIB_DATA_DIR
+    stage = destination.with_name(destination.name + ".build-" + uuid.uuid4().hex[:8])
+    if not stage.resolve().is_relative_to(config.BASE_DIR.resolve()):
+        raise ValueError("导出目录必须位于项目内")
+    try:
+        config.QLIB_DATA_DIR = stage
+        write_calendar(calendar)
+        write_instruments(data, set(intervals), intervals=intervals)
+        write_features(data, calendar)
+    finally:
+        config.QLIB_DATA_DIR = destination
+    if destination.exists():
+        backup = destination.with_name(destination.name + ".backup-" + uuid.uuid4().hex[:8])
+        destination.rename(backup)
+        try:
+            stage.rename(destination)
+        except Exception:
+            backup.rename(destination)
+            raise
     else:
-        print("警告：缺少 SH510300，无法生成沪深300基准，回测需退回等权基准")
-
-    write_calendar(calendar)
-    write_instruments(data, tradable, entry_dates)
-    write_features(data, calendar)
-
-    # 数据血缘/溯源：记录本次 dump 的数据版本与范围（Phase 3）
-    run_meta = {
-        "dumped_at": pd.Timestamp.now().strftime("%Y-%m-%d %H:%M:%S"),
-        "data_version": store.latest_run_id(),
-        "calendar_start": calendar[0],
-        "calendar_end": calendar[-1],
-        "n_instruments_all": len([s for s in data if not s.startswith("BENCH")]),
-        "n_tradable": len(tradable),
-        "tradable": sorted(tradable),
-    }
-    (config.OUTPUT_DIR / "run_meta.json").write_text(
-        json.dumps(run_meta, ensure_ascii=False, indent=2), encoding="utf-8")
-
-    print(f"完成，Qlib 数据已写入：{config.QLIB_DATA_DIR}")
-    print(f"数据溯源写入：{config.OUTPUT_DIR / 'run_meta.json'}")
+        stage.rename(destination)
+    frame.to_csv(config.OUTPUT_DIR / "historical_universe.csv", index=False)
+    write_json_atomic(config.OUTPUT_DIR / "data_meta.json", {
+        "dumped_at": pd.Timestamp.now().isoformat(), "data_version": store.latest_run_id(),
+        "calendar_start": calendar[0], "calendar_end": calendar[-1],
+        "n_instruments_all": frame["symbol"].nunique(), "n_tradable": len(current), "tradable": current,
+        "universe_method": "historical_daily_ann_date_strict", "benchmark": "SH510300 total-return proxy",
+    })
+    print(f"逐日可交易区间：{sum(map(len, intervals.values()))}；最新可交易：{len(current)}")
+    print(f"Qlib已完成分阶段导出：{destination}")
 
 
 if __name__ == "__main__":

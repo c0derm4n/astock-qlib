@@ -3,7 +3,9 @@
 # 建议用清华镜像：pip install -r requirements.txt -i https://pypi.tuna.tsinghua.edu.cn/simple
 
 pyqlib==0.9.7      # 微软 Qlib，AI量化框架（会自动安装 lightgbm/pandas/numpy 等）
-tushare==1.4.29    # ETF 主数据源（fund_daily/fund_adj/fund_nav/etf_basic，需 TUSHARE_TOKEN）
+tushare==1.4.29    # ETF 数据接口库（fund_daily/fund_adj/fund_nav/etf_basic）
+# tinyshare：tushare 代理接口（API 兼容，需授权码），当前 src/datasource/tushare_source.py 实际 import tinyshare
+# 安装：pip install tinyshare --extra-index-url https://minidoc.pages.dev/simple/ -U
 akshare==1.18.75   # ETF 校验/补数源（fund_etf_hist_em）
 duckdb==1.5.5      # 本地规范化真源 + 数据血缘（DuckDB/Parquet）
 
@@ -11,3 +13,9 @@ duckdb==1.5.5      # 本地规范化真源 + 数据血缘（DuckDB/Parquet）
 lightgbm==4.7.0
 pandas==2.3.3
 numpy==2.2.6
+
+# 审计研究与模拟执行
+exchange-calendars==4.13.2
+filelock>=3.16,<4
+scikit-learn>=1.6,<2
+pyarrow>=18,<24

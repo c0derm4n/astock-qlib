@@ -16,6 +16,7 @@ import pandas as pd
 
 import config
 from src.utils import load_names, picks_table
+from src.runs import artifact_path
 
 
 def main() -> None:
@@ -24,7 +25,9 @@ def main() -> None:
     parser.add_argument("--topk", type=int, default=config.TOPK, help="展示前几只")
     args = parser.parse_args()
 
-    pred_file = config.OUTPUT_DIR / "predictions.pkl"
+    if args.topk < 1:
+        raise SystemExit("topk 必须为正整数")
+    pred_file = artifact_path("predictions.pkl")
     if not pred_file.exists():
         raise SystemExit("未找到预测结果，请先运行：python -m src.train")
     pred = pd.read_pickle(pred_file)  # Series: (datetime, instrument) -> score

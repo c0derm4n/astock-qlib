@@ -1,7 +1,7 @@
 """
 全局配置：数据范围、股票池、训练/验证/测试切分、策略参数。
 
-只改这一个文件就能调整整套流程的行为。
+数据源与兼容研究配置；v2投资研究与组合参数以research_protocol.json为准。
 """
 from __future__ import annotations
 
@@ -28,9 +28,11 @@ for _d in (QLIB_DATA_DIR, RAW_CACHE_DIR, OUTPUT_DIR, MODEL_DIR, DATA_DIR):
 # ETF 池：内置宽基 + 行业主题 ETF(universe.py)，不依赖成分股接口
 MARKET = "etf"             # 写入 Qlib instruments 的市场名(小写)
 
-# 回测主基准：沪深300（以沪深300ETF代理，dump 时生成 BENCH300 不可交易实例），
-# 用户关心“能否跑赢沪深300”。EQW_BENCH 为全ETF等权参考基准(衡量轮动alpha)。
+# 回测主基准：沪深300。dump 时生成 BENCH300 不可交易实例：优先用真沪深300指数
+# (Tushare index_daily，见 BENCHMARK_INDEX_TS)，无指数数据时回退沪深300ETF代理。
+# EQW_BENCH 为全ETF等权参考基准(衡量轮动alpha)。
 BENCHMARK_SYMBOL = "BENCH300"
+BENCHMARK_INDEX_TS = "000300.SH"   # 真实指数基准的 Tushare 代码
 EQW_BENCH_SYMBOL = "BENCH"
 
 START_DATE = "20160101"    # 抓取起始日 (YYYYMMDD)  ← 扩到2016，覆盖更长历史
@@ -105,13 +107,21 @@ LGB_PARAMS = {
     "lambda_l2": 10,
 }
 
+# 训练退化保护：每日横截面仅 10~27 只时 CSRankNorm 标签信噪比极低，验证集 l2
+# 噪声可致早停停在第 1 棵树(best_iteration=1)，模型退化为近似常数输出（打分
+# 大面积并列、策略失效）。best_iteration < LGB_MIN_BEST_ITER 判定为退化，改用
+# 固定 LGB_FALLBACK_ROUNDS 轮重训（不早停，预测用全部树）。
+LGB_MIN_BEST_ITER = 10
+LGB_FALLBACK_ROUNDS = 150
+
 # ----------------------------------------------------------------------------
 # 数据层：源/存储/校验（Tushare 主 + AKShare 校验 + DuckDB 规范化）
 # ----------------------------------------------------------------------------
 # Tushare token 从环境变量注入，勿硬编码（PowerShell: $env:TUSHARE_TOKEN="xxxx"）
 TUSHARE_TOKEN = os.getenv("TUSHARE_TOKEN", "")
 # 日线主源：tushare(需≥5000积分) | akshare(免费，自带后复权)
-PRIMARY_BAR_SOURCE = "akshare"
+# 当前：使用 tinyshare 代理接口(1w积分)，Tushare 作为日线/复权/净值/元数据主源
+PRIMARY_BAR_SOURCE = "auto"  # 有令牌用原主源；无令牌时用经过重叠校验的腾讯/新浪免费增量
 
 DUCKDB_PATH = DATA_DIR / "market.duckdb"   # DuckDB 单文件库
 PARQUET_DIR = DATA_DIR / "parquet"         # （预留）Parquet 导出目录
@@ -131,7 +141,7 @@ EXCLUDE_QDII = True
 # ----------------------------------------------------------------------------
 # 每日盘中决策（src.decide，交易日 14:30 运行）
 # ----------------------------------------------------------------------------
-DECISION_RUN_TIME = "14:30"                     # 建议运行时刻(用当时价近似当日收盘)
+DECISION_RUN_TIME = "19:00"                     # 正式日线收齐后生成下一交易日开盘建议
 POSITIONS_FILE = OUTPUT_DIR / "positions.json"  # 当前持仓状态(--apply 时更新)
 MODEL_STALE_DAYS = 45                           # model.pkl 超过 N 天未重训则提示
 
@@ -145,7 +155,11 @@ PREMIUM_CAP = 0.03           # QDII 决策日溢价 > 3% 时降权，避免高�
 # 回测滑点
 # ----------------------------------------------------------------------------
 SLIPPAGE_BPS = 0.0005        # 单边滑点 5bp，折入交易成本
-DEAL_PRICE = "close"         # 成交价：close | vwap
+DEAL_PRICE = "open"          # 收盘信号，下一交易日开盘执行
+
+# 旧Alpha158研究接口保留，但禁止自动绕过早停。正式入口使用research_protocol.json。
+ALLOW_FIXED_ROUNDS_RESEARCH = False
+MAX_DATA_STALE_DAYS = 7
 
 # ----------------------------------------------------------------------------
 # 波动率目标仓位层（风控从标的级趋势过滤改为组合级仓位调节）

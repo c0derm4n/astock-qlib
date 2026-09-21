@@ -46,7 +46,11 @@ from src.utils import (load_names, patch_qlib_deterministic, picks_table,
 def build_dataset(train_period, valid_period, test_period) -> DatasetH:
     """构建 Alpha158 数据集：158 特征 + N 日标签；归一化只在 train 段拟合(防未来函数)。"""
     h = config.LABEL_HORIZON
-    label = ([f"Ref($close, -{h + 1})/Ref($close, -1) - 1"], ["LABEL0"])
+    from src.temporal import purged_period
+    calendar = D.calendar(freq="day")
+    train_period = purged_period(train_period, calendar, h, valid_period[0])
+    valid_period = purged_period(valid_period, calendar, h, test_period[0])
+    label = ([f"Ref($open, -{h + 1})/Ref($open, -1) - 1"], ["LABEL0"])
 
     infer_processors = [
         {"class": "RobustZScoreNorm", "kwargs": {"fields_group": "feature", "clip_outlier": True}},
@@ -70,6 +74,35 @@ def build_dataset(train_period, valid_period, test_period) -> DatasetH:
         handler,
         segments={"train": train_period, "valid": valid_period, "test": test_period},
     )
+
+
+def _fit_lgb(ds: DatasetH) -> LGBModel:
+    """训练单窗口 LGBModel，带退化保护。
+
+    每日横截面仅 10~27 只，CSRankNorm 标签信噪比极低，验证集 l2 噪声可致早停
+    停在第 1 棵树(best_iteration=1)，模型退化为近似常数输出（打分大面积并列、
+    策略失效）。检测到退化时用原生 lgb.train 不带早停重训固定轮数：必须绕开
+    qlib 的 LGBModel.fit——它强制挂早停回调，末轮也会回写验证最优轮，且
+    lgb.train 收尾时按 best_iteration 把模型物理截断（只剩 1 棵树）。"""
+    model = LGBModel(**config.LGB_PARAMS)
+    model.fit(ds)
+    best = int(getattr(model.model, "best_iteration", 0) or 0)
+    min_best = int(getattr(config, "LGB_MIN_BEST_ITER", 0))
+    if 0 < best < min_best and getattr(config, "ALLOW_FIXED_ROUNDS_RESEARCH", False):
+        import lightgbm as lgb
+
+        rounds = int(getattr(config, "LGB_FALLBACK_ROUNDS", 150))
+        print(f"  [退化保护] 早停停在第 {best} 棵树(近似常数输出)，"
+              f"改用原生 lgb.train 固定 {rounds} 轮重训(无早停)")
+        df = ds.prepare("train", col_set=["feature", "label"], data_key=DataHandlerLP.DK_L)
+        x, y = df["feature"], np.squeeze(df["label"].values)
+        params = {k: v for k, v in config.LGB_PARAMS.items()
+                  if k not in ("loss", "num_boost_round", "early_stopping_rounds")}
+        params.update({"objective": config.LGB_PARAMS.get("loss", "mse"), "verbosity": -1})
+        booster = lgb.train(params, lgb.Dataset(x.values, label=y), num_boost_round=rounds)
+        model.model = booster  # 无早停：best_iteration<=0，预测自动用全部树
+        print(f"  [退化保护] 重训完成：{booster.num_trees()} 棵树")
+    return model
 
 
 def _predict_and_label(model: LGBModel, dataset: DatasetH):
@@ -97,8 +130,7 @@ def walk_forward(test_years: list[int] | None = None):
         test = (f"{ty}-01-01", f"{ty}-12-31")
         print(f"[walk-forward] 测试 {ty}：训练 {train[0]}~{train[1]}，验证 {valid[0]}~{valid[1]}")
         ds = build_dataset(train, valid, test)
-        model = LGBModel(**config.LGB_PARAMS)
-        model.fit(ds)
+        model = _fit_lgb(ds)
         p, lab = _predict_and_label(model, ds)
         preds.append(p)
         labels.append(lab)
@@ -115,8 +147,7 @@ def walk_forward(test_years: list[int] | None = None):
 def single_split():
     """单次切分(WALK_FORWARD=False 时)。"""
     ds = build_dataset(config.TRAIN_PERIOD, config.VALID_PERIOD, config.TEST_PERIOD)
-    model = LGBModel(**config.LGB_PARAMS)
-    model.fit(ds)
+    model = _fit_lgb(ds)
     pred, label = _predict_and_label(model, ds)
     pred = pred.sort_index()
     pred.name = "score"
@@ -277,7 +308,7 @@ def run_backtest(signal: pd.Series) -> dict:
     }
 
 
-def main() -> None:
+def legacy_main() -> None:
     qlib.init(provider_uri=str(config.QLIB_DATA_DIR), region=REG_CN)
     patch_qlib_deterministic()  # 固定回测 tie-breaking，保证跨进程可复现
 
@@ -343,6 +374,12 @@ def _write_run_meta(ic_metrics: dict, bt_metrics: dict) -> None:
     meta["ic_metrics"] = ic_metrics
     meta["backtest"] = bt_metrics
     path.write_text(json.dumps(meta, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
+def main() -> None:
+    """正式训练入口：固定研究协议、完整压力验收和独立生产模型。"""
+    from src.research import main as research_main
+    research_main()
 
 
 if __name__ == "__main__":
