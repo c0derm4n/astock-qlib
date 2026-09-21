@@ -8,9 +8,9 @@
 """
 from __future__ import annotations
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import PlainTextResponse
+from fastapi.responses import JSONResponse, PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
@@ -19,7 +19,12 @@ import universe
 from backend import BASE_DIR, data_service, pipeline
 from src.utils import to_qlib_symbol
 
-app = FastAPI(title="A股ETF轮动系统 API", version="1.0.0")
+app = FastAPI(title="A股ETF轮动研究系统 API", version="2.1.0")
+
+
+@app.exception_handler(data_service.ArtifactUnavailableError)
+async def artifact_unavailable(request: Request, exc: data_service.ArtifactUnavailableError):
+    return JSONResponse(status_code=503, content={"detail": str(exc)}, headers={"Retry-After": "2"})
 
 # 开发模式前端跑在 vite(5173)，放开跨域；生产由本服务托管静态文件，无跨域
 app.add_middleware(
@@ -47,17 +52,17 @@ def overview() -> dict:
 def get_universe() -> list[dict]:
     """内置 ETF 池（universe.py）；标注资产类别与是否可交易。
 
-    可交易以最近一次 dump 的 run_meta.json 为准（含动态池过滤 + QDII 排除）；
-    尚未 dump 过时退化为“非 QDII 即可交易”的静态口径。"""
-    tradable = set(data_service.read_run_meta().get("tradable") or [])
+    可交易以当前运行的逐日资格审计为准；缺少结果时不放行。"""
+    saved_tradable = data_service.read_run_meta().get("tradable")
+    tradable = set(saved_tradable) if isinstance(saved_tradable, list) else None
     rows = []
     for code, name in universe.UNIVERSE.items():
         symbol = to_qlib_symbol(code)
         cls = universe.get_asset_class(code)
-        if tradable:
+        if tradable is not None:
             ok = symbol in tradable
         else:
-            ok = not (config.EXCLUDE_QDII and cls == "qdii")
+            ok = False
         rows.append({"code": code, "name": name, "symbol": symbol,
                      "asset_class": cls, "tradable": ok})
     return rows
@@ -66,10 +71,13 @@ def get_universe() -> list[dict]:
 @app.get("/api/config")
 def get_config() -> dict:
     """关键全局配置（config.py），只读展示；口径与当前生产逻辑对齐。"""
+    protocol = data_service.read_run_meta().get("protocol", {})
     return {
+        "research_protocol": protocol,
+        "configuration_source": "current_run" if protocol else "legacy_config",
         "market": config.MARKET,
         "start_date": config.START_DATE,
-        "label_horizon": config.LABEL_HORIZON,
+        "label_horizon": protocol.get("label_horizon", config.LABEL_HORIZON),
         # 切分口径：walk_forward=True 时逐年滚动重训，train/valid/test 不生效
         "walk_forward": config.WALK_FORWARD,
         "wf_train_start": config.WF_TRAIN_START,
@@ -77,12 +85,12 @@ def get_config() -> dict:
         "train_period": list(config.TRAIN_PERIOD),
         "valid_period": list(config.VALID_PERIOD),
         "test_period": list(config.TEST_PERIOD),
-        "topk": config.TOPK,
-        "n_drop": config.N_DROP,
-        "hold_thresh": config.HOLD_THRESH,
-        "open_cost": config.OPEN_COST,
-        "close_cost": config.CLOSE_COST,
-        "slippage_bps": config.SLIPPAGE_BPS * 1e4,
+        "topk": protocol.get("topk", config.TOPK),
+        "n_drop": protocol.get("n_drop", config.N_DROP),
+        "hold_thresh": protocol.get("hold_days", config.HOLD_THRESH),
+        "open_cost": protocol.get("commission", config.OPEN_COST),
+        "close_cost": protocol.get("commission", config.CLOSE_COST),
+        "slippage_bps": protocol.get("slippage", config.SLIPPAGE_BPS) * 1e4,
         "deal_price": config.DEAL_PRICE,
         "exclude_qdii": config.EXCLUDE_QDII,
         "use_trend_filter": config.USE_TREND_FILTER,
@@ -95,7 +103,10 @@ def get_config() -> dict:
 # 选 ETF 清单（对应 python -m src.predict）
 # ---------------------------------------------------------------------------
 @app.get("/api/picks")
-def get_picks(date: str | None = None, topk: int = config.TOPK) -> dict:
+def get_picks(
+    date: str | None = Query(None, pattern=r"^\d{4}-\d{2}-\d{2}$"),
+    topk: int = Query(config.TOPK, ge=1, le=50),
+) -> dict:
     """某交易日模型打分 TopK 清单；date 缺省=最新，非交易日回退到之前最近交易日。"""
     if not data_service.has_predictions():
         raise HTTPException(404, "暂无预测结果，请先在「数据管道」运行训练(train)")
@@ -152,6 +163,14 @@ def train_metrics() -> dict:
     return metrics
 
 
+@app.get("/api/acceptance")
+def acceptance() -> dict:
+    report = data_service.read_acceptance()
+    if report is None:
+        raise HTTPException(404, "尚无审计研究报告，请先运行训练")
+    return report
+
+
 # ---------------------------------------------------------------------------
 # 数据管道（对应 README 快速开始的四步命令）
 # ---------------------------------------------------------------------------
@@ -176,7 +195,7 @@ def pipeline_status() -> dict:
 
 
 @app.get("/api/pipeline/logs/{step}", response_class=PlainTextResponse)
-def pipeline_logs(step: str, tail: int = 2000) -> str:
+def pipeline_logs(step: str, tail: int = Query(2000, ge=1, le=10000)) -> str:
     text = pipeline.get_step_log(step, tail)
     if text is None:
         raise HTTPException(400, f"未知步骤 {step}，可选: {pipeline.STEP_ORDER}")

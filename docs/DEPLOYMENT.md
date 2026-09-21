@@ -1,122 +1,58 @@
-# 前后端部署文档
+# v2 前后端部署与运维
 
-Web 界面是对 CLI 管道（`src/` 四步）的可视化封装，**不改动 src 任何代码**：
+本项目由 Vue 3 界面、FastAPI 本地服务、DuckDB 行情库和版本化研究产物组成。Web 的训练按钮运行完整研究与验收；模拟决策按钮执行 `src.decide --paper`，只生成订单建议。
 
-```
-浏览器 ←HTTP→ Vue3 前端(frontend/) ←/api→ FastAPI 后端(backend/) ─子进程→ python -m src.fetch_data / dump_qlib / train
-                                                              └─读取→ output/（predictions.pkl、backtest_report.csv、train_metrics.json）
-```
+## 安装与启动
 
-- 后端只做两件事：① 以子进程方式运行 README 里的管道命令（fetch/dump/train/decide）并捕获日志/指标；② 读取 `output/` 产物提供查询接口。
-- 前端五个页面：总览 / 选ETF清单（对应 `python -m src.predict`）/ 每日决策（对应 `python -m src.decide` 的 `output/decision_YYYYMMDD.csv`）/ 回测分析 / 数据管道（一键 fetch→dump→train，decide 单独触发）。
-
----
-
-## 1. 环境要求
-
-| 依赖 | 版本 | 说明 |
-|------|------|------|
-| Python | 3.10+ | 用项目 `.venv`（已装 pyqlib/akshare/pandas） |
-| Node.js | ≥ 18 | 仅构建/开发前端需要；生产运行不需要 |
-
----
-
-## 2. 后端部署（FastAPI）
-
-在项目根目录（`astock-qlib/`）操作：
+在项目根目录使用 Python 3.10+ 的虚拟环境：
 
 ```powershell
-# 激活虚拟环境
 .\.venv\Scripts\Activate.ps1
-
-# 安装后端依赖（装进同一个 .venv）
-pip install -r backend\requirements.txt
-
-# 启动（开发，自动重载）
-uvicorn backend.main:app --reload --host 127.0.0.1 --port 8000
-
-# 启动（生产）
-uvicorn backend.main:app --host 0.0.0.0 --port 8000
-```
-
-接口文档：启动后访问 `http://127.0.0.1:8000/docs`（Swagger UI）。
-
-**注意事项：**
-
-- **必须单进程运行**（不要加 `--workers`）：管道任务状态保存在内存中。
-- 同一时间只允许一个管道任务；重复触发返回 `409`。
-- 每步完整日志写入 `output/pipeline_logs/<step>.log`；train 的 IC/回测指标解析后落盘 `output/train_metrics.json`。
-- 子进程使用与后端相同的 Python 解释器，因此务必在 `.venv` 里启动，否则 train/fetch 会因缺依赖失败。
-- train 耗时较长（特征计算 + 训练 + 回测），属正常；页面日志实时滚动。
-
----
-
-## 3. 前端部署（Vue 3 + Vite）
-
-在 `frontend/` 目录操作：
-
-```powershell
+pip install -r requirements.txt
+pip install -r backend/requirements-dev.txt
 cd frontend
-npm install
+npm ci
+npm run build
+cd ..
+uvicorn backend.main:app --host 127.0.0.1 --port 8000
 ```
 
-### 开发模式（热更新，前后端分离）
+浏览器访问 `http://127.0.0.1:8000`；接口文档为 `/docs`。后端自动托管 `frontend/dist`，前端使用哈希路由。开发时可在 `frontend` 运行 `npm run dev`，5173端口将 `/api` 代理到8000端口。
+
+使用单 worker；管道状态在内存中，同一时间仅允许运行一个任务，重复触发返回409。当前服务用于本地操作，尚无多用户权限管理，跨主机部署需要另行配置认证与访问控制。
+
+## 数据与研究更新
+
+1. 运行 `python -m src.fetch_data`。默认auto模式：本机有令牌使用原授权服务，没有令牌使用腾讯原价与新浪公司行动的免费增量。免费源逐只核对历史重叠、因子衔接和覆盖；通过后备份并原子切换数据库，不支持--force建立全历史。
+2. 需要Qlib兼容数据时运行 `python -m src.dump_qlib`，按历史逐日资格导出，并保留旧目录备份。
+3. 运行 `python -m src.train`，完成滚动训练、对照、压力、参数邻域和独立生产训练。仅成功完成后切换 `output/current_run.json`。
+4. 在 `/api/acceptance` 或总览查看投资准入结果。训练进程成功只表示研究运行完成，不表示投资准入通过。
+
+每次研究写入 `output/runs/<run_id>/`，包含模型、预处理器、数据快照、代码副本、协议、哈希、报告及验收结果。CLI预测和Web从当前指针读取。Qlib导出单独写 `output/data_meta.json`；管道日志在 `output/pipeline_logs/`。
+
+代码或协议变更后须重训验收，否则决策拒绝加载旧版本。仅重启后端无法替代重新验收。`src.research --quick` 为开发冒烟，不能通过投资门禁。
+
+## 账户、日常决策与观察
+
+新模拟账户可运行 `python -m src.account init --cash 1000000`；已有账户必须核对份额与现金，初始化不能覆盖原文件。完整格式及成交导入示例见根目录README。
+
+交易日正式收盘数据完成后（默认19:00），运行 `python -m src.decide --paper`，生成下一交易日开盘模拟订单。使用交易所日历处理周末、节假日；不抓取14:30快照、不自动更新持仓。定时脚本为 `run_decide_1900.ps1`，需由使用者按需要配置任务计划，项目不会自动注册。
+
+成交回报通过 `src.account apply-fills` 导入；分红、折算、清盘回款通过 `apply-actions` 根据核对回单入账。执行日19:00后运行 `python -m src.forward`，记录当天前瞻观察。规则版本、信号冻结、连续交易日、账户净值衔接及成交完成率都参与检查；历史回填不计入前瞻。
+
+## 故障与验收
+
+- 缺少预测/报告返回404；损坏或更新中的产物返回503，附带重试提示。
+- 账户缺失、损坏或旧代码列表格式时停止决策；不会默认为空仓。
+- 行情或模型过期、协议/代码哈希变化、准入未通过时，正式建议会被阻断。`--paper` 用于检查研究结果，不能证明实盘可用。
+- 子进程失败后管道标记失败并跳过后续步骤；后端重启不恢复原任务历史。
+- 修改数据源或标的目录后，应补齐原始价、复权因子、公告日期及生命周期证据。缺少完整清盘/退市目录或公司行动证据时，不打开审计门禁。
 
 ```powershell
-npm run dev    # 监听 5173
+.venv\Scripts\python.exe -m unittest discover -s tests -v
+.venv\Scripts\python.exe -m compileall -q src backend tests
+cd frontend
+npm run build
 ```
 
-浏览器访问 `http://127.0.0.1:5173`。`vite.config.js` 已配置 `/api` 代理到 `http://127.0.0.1:8000`，需同时启动后端。
-
-### 生产模式（推荐：单端口，后端托管前端）
-
-```powershell
-npm run build  # 产出 frontend\dist\
-```
-
-`backend/main.py` 检测到 `frontend/dist` 存在时会自动托管它。此后**只需启动后端**：
-
-```powershell
-uvicorn backend.main:app --host 0.0.0.0 --port 8000
-```
-
-浏览器直接访问 `http://127.0.0.1:8000`（前端用哈希路由，无需重写规则）。
-
-### 备选：Nginx 托管
-
-```nginx
-server {
-    listen 80;
-    root F:/workspace/astock-qlib/frontend/dist;
-    index index.html;
-
-    location /api/ {
-        proxy_pass http://127.0.0.1:8000;
-        proxy_read_timeout 300s;
-    }
-    location / {
-        try_files $uri $uri/ /index.html;
-    }
-}
-```
-
----
-
-## 4. 常驻运行（Windows）
-
-用任务计划程序或 [NSSM](https://nssm.cc) 注册为服务，示例（NSSM）：
-
-```powershell
-nssm install astock-api "F:\workspace\astock-qlib\.venv\Scripts\python.exe" "-m uvicorn backend.main:app --host 0.0.0.0 --port 8000"
-nssm set astock-api AppDirectory F:\workspace\astock-qlib
-nssm start astock-api
-```
-
----
-
-## 5. 常见问题
-
-- **页面显示「暂无数据」**：还没跑过训练。到「数据管道」点「一键运行」，或先按 README 跑完 CLI 四步，页面即可读取已有产物。
-- **抓取失败（ProxyError/SSLEOFError）**：网络经代理不稳，多跑几次 `fetch` 增量补齐（与 CLI 行为一致）。
-- **改了 `config.py` / `universe.py` 后**：重启后端生效；改了 ETF 池需重跑 fetch → dump → train。
-- **跨域**：开发模式后端已放开 CORS；生产单端口托管无跨域问题。
+最新结果见 [v2.1.1投资准入验收报告](INVESTMENT_READINESS_ACCEPTANCE.md)。免费源更新明细在output/data_updates；缓存和前端体积性能对照保存在 [工程优化记录](OPTIMIZATION_PLAN.md)。

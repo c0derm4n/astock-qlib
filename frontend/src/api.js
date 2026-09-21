@@ -7,8 +7,13 @@ const api = axios.create({ baseURL: '/api', timeout: 30000 })
 api.interceptors.response.use(
   (resp) => resp.data,
   (err) => {
-    const msg = err.response?.data?.detail || err.message || '请求失败'
-    ElMessage.error(msg)
+    if (!axios.isCancel(err) && !err.config?.silentErrors) {
+      const detail = err.response?.data?.detail
+      const msg = Array.isArray(detail)
+        ? detail.map((item) => item.msg).join('；')
+        : detail || err.message || '请求失败'
+      ElMessage.error(msg)
+    }
     return Promise.reject(err)
   },
 )

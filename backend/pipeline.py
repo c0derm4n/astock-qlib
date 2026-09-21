@@ -18,6 +18,8 @@ from collections import deque
 
 import config
 from backend import data_service
+from backend.artifacts import finite_float, json_safe, write_json_atomic
+from src.runs import artifact_path
 
 BASE_DIR = config.BASE_DIR
 LOG_DIR = config.OUTPUT_DIR / "pipeline_logs"
@@ -28,7 +30,7 @@ STEPS: dict[str, tuple[str, list[str]]] = {
     "fetch": ("抓取行情", [sys.executable, "-m", "src.fetch_data"]),
     "dump": ("转换Qlib数据", [sys.executable, "-m", "src.dump_qlib"]),
     "train": ("训练+回测", [sys.executable, "-m", "src.train"]),
-    "decide": ("每日决策", [sys.executable, "-m", "src.decide"]),
+    "decide": ("模拟决策", [sys.executable, "-m", "src.decide", "--paper"]),
 }
 STEP_ORDER = ["fetch", "dump", "train", "decide"]
 # 「一键运行」默认只跑数据+训练三步；decide 为每日盘中决策，按需单独触发
@@ -40,7 +42,7 @@ class _State:
         self.lock = threading.Lock()
         self.running = False
         self.current_step: str | None = None
-        self.step_status: dict[str, str] = {}  # step -> pending/running/done/failed
+        self.step_status: dict[str, str] = {}  # step -> pending/running/done/failed/skipped
         self.started_at: float | None = None
         self.finished_at: float | None = None
         self.error: str | None = None
@@ -64,9 +66,9 @@ def _run_step(step: str) -> bool:
     _, cmd = STEPS[step]
     LOG_DIR.mkdir(parents=True, exist_ok=True)
     # 子进程强制 UTF-8 输出，避免 Windows 默认 GBK 解码乱码
-    env = dict(os.environ, PYTHONIOENCODING="utf-8")
-    with open(LOG_DIR / f"{step}.log", "w", encoding="utf-8") as lf:
-        proc = subprocess.Popen(
+    env = dict(os.environ, PYTHONIOENCODING="utf-8", PYTHONUNBUFFERED="1")
+    with open(LOG_DIR / f"{step}.log", "w", encoding="utf-8", buffering=1) as lf:
+        with subprocess.Popen(
             cmd,
             cwd=BASE_DIR,
             stdout=subprocess.PIPE,
@@ -75,12 +77,18 @@ def _run_step(step: str) -> bool:
             encoding="utf-8",
             errors="replace",
             env=env,
-        )
-        assert proc.stdout is not None
-        for line in proc.stdout:
-            _append(line)
-            lf.write(line)
-        return proc.wait() == 0
+            creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0,
+        ) as proc:
+            try:
+                assert proc.stdout is not None
+                for line in proc.stdout:
+                    _append(line)
+                    lf.write(line)
+                return proc.wait() == 0
+            except Exception:
+                if proc.poll() is None:
+                    proc.terminate()
+                raise
 
 
 # ---------------------------------------------------------------------------
@@ -98,10 +106,7 @@ _RE_STRAT_ABS = re.compile(r"策略自身[:：]\s*年化\s*(-?[\d.]+%)\s*最大�
 
 
 def _pct(s: str) -> float | None:
-    try:
-        return float(s.rstrip("%"))
-    except ValueError:
-        return None
+    return finite_float(s.rstrip("%"))
 
 
 def parse_train_metrics(text: str) -> dict:
@@ -111,10 +116,7 @@ def parse_train_metrics(text: str) -> dict:
     for line in text.splitlines():
         line = line.strip()
         if m := _RE_IC.match(line):
-            try:
-                ic[m.group(1)] = float(m.group(2))
-            except ValueError:
-                ic[m.group(1)] = None
+            ic[m.group(1)] = finite_float(m.group(2))
         elif m := _RE_RANGE.match(line):
             backtest.update({"start": m.group(1), "end": m.group(2), "topk": int(m.group(3))})
         elif m := _RE_STRAT.search(line):
@@ -125,10 +127,7 @@ def parse_train_metrics(text: str) -> dict:
             backtest["eqw_cum_return_pct"] = _pct(m.group(1))
         elif m := _RE_EXCESS.search(line):
             backtest["excess_annual_pct"] = _pct(m.group(1))
-            try:
-                backtest["information_ratio"] = float(m.group(2))
-            except ValueError:
-                backtest["information_ratio"] = None
+            backtest["information_ratio"] = finite_float(m.group(2))
             backtest["excess_max_drawdown_pct"] = _pct(m.group(3))
         elif m := _RE_STRAT_ABS.search(line):
             backtest["strategy_annual_pct"] = _pct(m.group(1))
@@ -146,8 +145,8 @@ def _merge_run_meta(metrics: dict) -> None:
     bt = meta.get("backtest") or {}
 
     def _pct100(key: str) -> float | None:
-        v = bt.get(key)
-        return round(float(v) * 100, 2) if v is not None else None
+        v = finite_float(bt.get(key))
+        return finite_float(v * 100, 2) if v is not None else None
 
     overlay = {
         "start": bt.get("bt_start"),
@@ -168,24 +167,35 @@ def _merge_run_meta(metrics: dict) -> None:
 
 
 def _save_metrics() -> None:
+    current = artifact_path("train_metrics.json", METRICS_FILE)
+    if current != METRICS_FILE and current.exists():
+        return  # 审计训练已在版本目录写入结构化指标，不解析旧日志覆盖
     log_file = LOG_DIR / "train.log"
     if not log_file.exists():
         return
     metrics = parse_train_metrics(log_file.read_text(encoding="utf-8", errors="replace"))
     _merge_run_meta(metrics)
     metrics["finished_at"] = time.strftime("%Y-%m-%d %H:%M:%S")
-    METRICS_FILE.write_text(
-        json.dumps(metrics, ensure_ascii=False, indent=2), encoding="utf-8"
-    )
+    write_json_atomic(METRICS_FILE, metrics)
 
 
 def read_metrics() -> dict | None:
     """读取最近一次训练的指标；若 json 缺失但 train.log 还在则补解析一次。"""
-    if not METRICS_FILE.exists() and (LOG_DIR / "train.log").exists():
-        _save_metrics()
-    if not METRICS_FILE.exists():
-        return None
-    return json.loads(METRICS_FILE.read_text(encoding="utf-8"))
+    current = artifact_path("train_metrics.json", METRICS_FILE)
+    if current != METRICS_FILE and current.exists():
+        return json_safe(json.loads(current.read_text(encoding="utf-8")))
+    # 运行中不从尚未写完的日志生成“训练完成”指标。
+    with _state.lock:
+        if not METRICS_FILE.exists() and not _state.running and (LOG_DIR / "train.log").exists():
+            if not _state.step_status or _state.step_status.get("train") == "done":
+                _save_metrics()
+        if not METRICS_FILE.exists():
+            return None
+        try:
+            metrics = json.loads(METRICS_FILE.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return None
+    return json_safe(metrics) if isinstance(metrics, dict) else None
 
 
 # ---------------------------------------------------------------------------
@@ -200,6 +210,8 @@ def _worker(steps: list[str]) -> None:
                 _state.step_status[step] = "running"
             _append(f"===== 开始 [{step}] {label} =====")
             ok = _run_step(step)
+            if ok and step == "train":
+                _save_metrics()
             with _state.lock:
                 _state.step_status[step] = "done" if ok else "failed"
                 if not ok:
@@ -207,10 +219,18 @@ def _worker(steps: list[str]) -> None:
             _append(f"===== [{step}] {'完成' if ok else '失败'} =====")
             if not ok:
                 return
-        if "train" in steps:
-            _save_metrics()
+    except Exception as exc:
+        message = f"管道异常：{type(exc).__name__}: {exc}"
+        with _state.lock:
+            if _state.current_step is not None:
+                _state.step_status[_state.current_step] = "failed"
+            _state.error = message
+        _append(message)
     finally:
         with _state.lock:
+            for step, state in _state.step_status.items():
+                if state == "pending":
+                    _state.step_status[step] = "skipped"
             _state.running = False
             _state.current_step = None
             _state.finished_at = time.time()
@@ -233,7 +253,17 @@ def start(steps: list[str] | None = None) -> list[str]:
         _state.finished_at = None
         _state.error = None
         _state.log.clear()
-    threading.Thread(target=_worker, args=(steps,), daemon=True).start()
+    try:
+        threading.Thread(target=_worker, args=(steps,), daemon=True).start()
+    except Exception as exc:
+        message = f"无法启动管道任务：{exc}"
+        with _state.lock:
+            _state.running = False
+            _state.step_status = {s: "skipped" for s in steps}
+            _state.error = message
+            _state.finished_at = time.time()
+            _state.log.append(message)
+        raise RuntimeError(message) from exc
     return steps
 
 
@@ -253,8 +283,23 @@ def status() -> dict:
 def get_step_log(step: str, tail: int = 2000) -> str | None:
     if step not in STEPS:
         return None
+    if tail < 1 or tail > 10000:
+        raise ValueError("tail 必须在 1 到 10000 之间")
     f = LOG_DIR / f"{step}.log"
-    if not f.exists():
+    try:
+        # 从尾部按块读取；训练日志再大也无需把整个文件载入内存。
+        with f.open("rb") as stream:
+            position = stream.seek(0, os.SEEK_END)
+            chunks = []
+            newlines = 0
+            while position > 0 and newlines <= tail:
+                size = min(8192, position)
+                position -= size
+                stream.seek(position)
+                chunk = stream.read(size)
+                chunks.append(chunk)
+                newlines += chunk.count(b"\n")
+        lines = b"".join(reversed(chunks)).decode("utf-8", errors="replace").splitlines()
+        return "\n".join(lines[-tail:])
+    except FileNotFoundError:
         return ""
-    lines = f.read_text(encoding="utf-8", errors="replace").splitlines()
-    return "\n".join(lines[-tail:])

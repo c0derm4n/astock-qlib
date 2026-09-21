@@ -3,7 +3,7 @@
     <el-card class="mb16">
       <template #header>
         <span>管道步骤（与 README 快速开始一致）</span>
-        <el-button class="run-all" type="primary" :disabled="status.running" @click="run(null)">
+        <el-button class="run-all" type="primary" :disabled="status.running || submitting" @click="run(null)">
           一键运行 fetch → dump → train
         </el-button>
       </template>
@@ -16,7 +16,7 @@
             </div>
             <div class="step-cmd">python -m {{ s.module }}</div>
             <div class="step-desc">{{ s.desc }}</div>
-            <el-button size="small" :disabled="status.running" @click="run([s.key])">运行此步</el-button>
+            <el-button size="small" :disabled="status.running || submitting" @click="run([s.key])">运行此步</el-button>
           </el-card>
         </el-col>
       </el-row>
@@ -43,26 +43,43 @@ import { ElMessage } from 'element-plus'
 import api from '../api'
 
 const steps = [
-  { key: 'fetch', name: '1. 抓取行情', module: 'src.fetch_data', desc: '多源采集 ETF 日线入 DuckDB（增量）' },
+  { key: 'fetch', name: '1. 抓取行情', module: 'src.fetch_data', desc: '自动选择授权或免费源；核对历史重叠与复权后增量更新' },
   { key: 'dump', name: '2. 转换数据', module: 'src.dump_qlib', desc: 'DuckDB 转 Qlib 二进制 + 动态池过滤' },
-  { key: 'train', name: '3. 训练回测', module: 'src.train', desc: 'walk-forward 滚动重训 + 回测 + 最新清单（耗时较长）' },
-  { key: 'decide', name: '4. 每日决策', module: 'src.decide', desc: '交易日 14:30 运行：盘中打分 vs 持仓 → 买卖清单' },
+  { key: 'train', name: '3. 训练验收', module: 'src.train', desc: '滚动历史研究、对照与压力测试，生成独立生产模型' },
+  { key: 'decide', name: '4. 模拟决策', module: 'src.decide --paper', desc: '19:00 后用正式收盘数据，生成下一交易日开盘模拟订单' },
 ]
 
 const status = reactive({ running: false, current_step: null, steps: {}, started_at: null, finished_at: null, error: null, log_tail: [] })
 const logEl = ref(null)
+const submitting = ref(false)
 let timer = null
+let request = null
+let controller = null
+let disposed = false
 
 const tagType = (s) => ({ running: 'warning', done: 'success', failed: 'danger' }[s] || 'info')
-const tagText = (s) => ({ pending: '等待中', running: '运行中', done: '成功', failed: '失败' }[s] || '未运行')
+const tagText = (s) => ({ pending: '等待中', running: '运行中', done: '成功', failed: '失败', skipped: '已跳过' }[s] || '未运行')
 
 async function poll() {
-  try {
-    Object.assign(status, await api.get('/pipeline/status'))
-    if (status.running) scrollLog()
-  } catch {
-    /* 后端未启动时静默 */
-  }
+  if (disposed) return
+  if (request) return request
+  clearTimeout(timer)
+  controller = new AbortController()
+  request = (async () => {
+    try {
+      const data = await api.get('/pipeline/status', { signal: controller.signal, silentErrors: true })
+      if (disposed) return
+      Object.assign(status, data)
+      scrollLog()
+    } catch {
+      /* 轮询失败时静默重试，避免持续弹出错误提示。 */
+    } finally {
+      request = null
+      controller = null
+      if (!disposed) timer = setTimeout(poll, status.running ? 2000 : 10000)
+    }
+  })()
+  return request
 }
 
 async function scrollLog() {
@@ -71,20 +88,28 @@ async function scrollLog() {
 }
 
 async function run(stepKeys) {
+  if (submitting.value || status.running) return
+  submitting.value = true
   try {
     await api.post('/pipeline/run', { steps: stepKeys })
+    if (disposed) return
     ElMessage.success('任务已启动')
-    poll()
+    // 等待已有查询结束后重新获取启动后的状态。
+    if (request) await request
+    await poll()
   } catch {
     /* 409/400 已由拦截器提示 */
+  } finally {
+    submitting.value = false
   }
 }
 
-onMounted(() => {
-  poll()
-  timer = setInterval(poll, 2000)
+onMounted(poll)
+onUnmounted(() => {
+  disposed = true
+  clearTimeout(timer)
+  controller?.abort()
 })
-onUnmounted(() => clearInterval(timer))
 </script>
 
 <style scoped>

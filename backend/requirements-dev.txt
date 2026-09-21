@@ -1,0 +1,3 @@
+# 在已安装根目录 requirements.txt 的环境中安装后端及 API 测试依赖
+-r requirements.txt
+httpx>=0.27,<1
