@@ -10,7 +10,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from backend.artifacts import write_json_atomic
+from src.artifacts import write_json_atomic
 from research.ex_nasdaq.core import SYMBOLS, market30
 from research.goal30.audit import BASE
 from research.goal30.bond_dividend_evidence import digest

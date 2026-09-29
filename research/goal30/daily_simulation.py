@@ -14,7 +14,7 @@ import pandas as pd
 from filelock import FileLock
 
 import config
-from backend.artifacts import json_safe, write_json_atomic
+from src.artifacts import json_safe, write_json_atomic
 from research.ex_nasdaq.core import SYMBOLS, validate_candidate
 from research.ex_nasdaq.replay import load_selected
 from research.goal30.audit import BASE, SELECTED

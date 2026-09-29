@@ -8,7 +8,7 @@ import numpy as np
 import pandas as pd
 from filelock import FileLock
 import config
-from backend.artifacts import write_json_atomic
+from src.artifacts import write_json_atomic
 from src.account import read_account
 from src.market import load_market
 from src.models import predict_bundle

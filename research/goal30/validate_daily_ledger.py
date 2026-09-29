@@ -11,7 +11,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from backend.artifacts import write_json_atomic
+from src.artifacts import write_json_atomic
 from research.ex_nasdaq.core import market30
 from research.goal30.audit import BASE
 from research.goal30.daily_cash_ledger import EventCalendar, fingerprint, freeze_next, new_state, require, settle_day

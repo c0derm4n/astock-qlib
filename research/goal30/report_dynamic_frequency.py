@@ -2,7 +2,7 @@
 import json
 from pathlib import Path
 import pandas as pd
-from backend.artifacts import write_json_atomic
+from src.artifacts import write_json_atomic
 from research.goal30.audit import BASE
 from research.goal30.bond_dividend_evidence import digest
 from research.goal30.explore_dynamic_frequency import ROOT, assess

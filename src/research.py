@@ -7,7 +7,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 import config
-from backend.artifacts import write_json_atomic
+from src.artifacts import write_json_atomic
 from src.market import load_market
 from src.models import walk_forward_models, fit_production
 from src.runs import new_run, publish, read_protocol, code_fingerprint

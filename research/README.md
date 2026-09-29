@@ -6,8 +6,9 @@
 
 | 方向 | 状态 | 说明 |
 | --- | --- | --- |
-| `research/` → `src/`、`backend/` | 允许 | 复用 `backend.artifacts.write_json_atomic`、`src.portfolio`、`src.simulation`、`src.market`、`src.universe_filter`、`src.models`、`src.account` |
-| `src/`、`backend/` → `research/` | 禁止 | 已核实零引用。改造或删除本目录不影响生产链路 |
+| `research/` → `src/` | 允许 | 复用 `src.artifacts.write_json_atomic`、`src.portfolio`、`src.simulation`、`src.market`、`src.universe_filter`、`src.models`、`src.account` |
+| `src/` → `research/` | 禁止 | 已核实零引用。改造或删除本目录不影响生产链路 |
+| `backend/`、`frontend/` | 无关 | 交付层，只负责编排与展示，不参与研究 |
 
 生产入口（`python -m src.train`、`python -m src.decide`、`/api/*`）都不经过本目录。
 
@@ -18,8 +19,11 @@
 | [sp500/](sp500/README.md) | 固定31只ETF对标标普500的探索与验证 | `output/sp500_exploration/` |
 | [ex_nasdaq/](ex_nasdaq/README.md) | 剔除纳指后30只ETF的独立历史研究 | `output/sp500_ex_nasdaq/` |
 | [goal30/](goal30/README.md) | 30只ETF目标的核验、每日观察与周度双档目标 | `output/goal30/` |
+| [prod_candidate/](prod_candidate/README.md) | `src/` 生产线候选的扩展窗口滚动回测（2018-2025） | `output/prod_candidate/` |
 
-三条线的演进关系：`sp500` 先确立「海外权益 + 黄金」的对标思路 → `ex_nasdaq` 剔除纳指、在30只池上重做 → `goal30` 在30只池上做逐日核验、现金分红回放与公司行动取证，最后由 `goal30/weekly_goal.py` 汇总为周频双档目标研究。
+三条线的演进关系：`sp500` 先确立「海外权益 + 黄金」的对标思路 → `ex_nasdaq` 剔除纳指、在30只池上重做 → `goal30` 在30只池上做逐日核验、现金分红回放与公司行动取证，后来分别开展旧双档周频研究（`weekly_goal.py`）和当前三项联合目标的周频迁移研究（`weekly_transfer.py`）。
+
+`prod_candidate/` 不属于上述三条线：它把 `src/` 的生产线候选（`core_satellite` + lightgbm 主模型）放到比生产协议更长的窗口（2018 起，见该目录说明为什么不能更早）重跑，只用于与指数、社保基金做同窗口对比。模型按时间滚动训练不等于策略选择有独立盲测。
 
 ## 共同方法
 
@@ -69,11 +73,16 @@ python -m research.ex_nasdaq.explore --registry research/ex_nasdaq/candidates_ro
 
 **定位**：三条线中文件最多（72 个 Python 文件）的一条，也是唯一包含**每日实盘前观察**与**公司行动/上市目录取证**的一条。输出到 `output/goal30/`。
 
+`risk_overlay.py` + `risk_overlay_protocol.json` 的 **`trend200_vol15`**（固定配置 + 200 日趋势门槛 + 15% 波动预算）是用户偏好的日频研究候选。已看历史的基础情景CAGR 9.53%、最大回撤13.08%、最差年−4.05%，CAGR/回撤幅度约0.73；它未满足当前13.50%年化目标。`ex_nasdaq` 的95个登记配置与本目录18个风险压力情景不能相加成113个独立策略，也不能据此宣称全项目最优。[2026-09-23周频核实](../docs/STRATEGY_AB_AUDIT_20260923.md)显示该候选周频全期为7.49%／−6.83%／15.73%（CAGR／最差年／最大回撤），年度−5%门槛未过。
+
+层次上本目录提供**风险叠加层**：基础候选（`communication60_gold35`）与30只池来自`ex_nasdaq`的冻结文件，`ex_nasdaq`不反向引用本目录。详见[goal30/README.md](goal30/README.md#日频风险叠加研究候选)。
+
 按用途分五类：
 
 - **研究与回放**——`cash_replay.py`（登记权益、除息应收、支付到账、真实拆分的现金分红回放）、`risk_overlay.py`、`turnover_replay.py`、`relative_allocation.py`、`group_diversification.py`、`redeployment.py`、`remaining_dividend_*.py`、`action_sensitivity.py`、`primary_*.py`、`daily*.py`、`broad_*.py`
 - **每日观察**——`daily.py`（北京时间 19:00 运行；休市或尚未到时不更新行情，成功观察同一日只冻结一次）、`forward.py`（前瞻观察的冻结与时效核算）
-- **周度双档目标**——`weekly_goal.py` + `weekly_goal_protocol.json`。**本目录中直接对应「年化/回撤双档 + 周频调仓」目标的模块，也是三条线的汇总点**：它复用 `ex_nasdaq` 的30只池与冻结方案、`goal30` 的现金回放与风险叠加、`sp500` 的分配回调与相对指标。协议登记 6 个变体（趋势窗口 200/240 × 波动预算 10%–25%）× 3 个情景（基础、双倍滑点、支付延迟 5 日）共 18 个完整结果
+- **旧周度双档目标**——`weekly_goal.py` + `weekly_goal_protocol.json`，对应历史5%年化/10%回撤、10%年化/30%回撤两档；6个变体 × 3个情景共18个结果。它不检验当前CAGR≥13.50%、最差年≥−5%、回撤≤40%的三项联合目标
+- **当前目标周频迁移**——`weekly_transfer.py` + `weekly_transfer_protocol.json`，登记A的24个周频情景；独立核实与B的诊断对照见[报告](../docs/STRATEGY_AB_AUDIT_20260923.md)，未切换生产
 - **独立核查**——11 个 `verify_*.py`（现金账本、分红公告原件、上市日期、执行对齐、风险叠加等）
 - **本地测试与报告**——13 个 `test_*.py`、5 个 `report_*.py`
 

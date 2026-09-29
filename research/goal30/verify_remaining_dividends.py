@@ -11,7 +11,7 @@ from urllib.parse import urljoin, urlparse
 
 import pandas as pd
 
-from backend.artifacts import write_json_atomic
+from src.artifacts import write_json_atomic
 from research.goal30.audit import BASE
 from research.goal30.acquire_remaining_dividends import ROOT
 from research.goal30.bond_dividend_evidence import digest

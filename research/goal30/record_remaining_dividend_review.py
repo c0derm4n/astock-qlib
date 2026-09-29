@@ -2,7 +2,7 @@
 import json
 import sys
 
-from backend.artifacts import write_json_atomic
+from src.artifacts import write_json_atomic
 from research.goal30.acquire_remaining_dividends import ROOT
 from research.goal30.primary_research_series import read
 from research.goal30.turnover_budget import require

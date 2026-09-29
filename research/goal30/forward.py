@@ -10,7 +10,7 @@ import numpy as np
 import pandas as pd
 from filelock import FileLock
 
-from backend.artifacts import write_json_atomic
+from src.artifacts import write_json_atomic
 from research.ex_nasdaq.core import SYMBOLS
 from research.goal30.audit import OUT
 

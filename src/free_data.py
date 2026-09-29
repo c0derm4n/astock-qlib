@@ -9,7 +9,7 @@ import pandas as pd
 from filelock import FileLock
 import config
 import universe
-from backend.artifacts import write_json_atomic
+from src.artifacts import write_json_atomic
 from src.datasource import DataStore
 from src.datasource.free_source import fetch_recent_bars, fetch_actions, aligned_increment
 from src.runs import sha256

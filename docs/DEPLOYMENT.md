@@ -2,6 +2,54 @@
 
 本项目由 Vue 3 界面、FastAPI 本地服务、DuckDB 行情库和版本化研究产物组成。Web 的训练按钮运行完整研究与验收；模拟决策按钮执行 `src.decide --paper`，只生成订单建议。
 
+## 分层与调用关系
+
+```mermaid
+flowchart TB
+  subgraph FE["frontend/ 交付层 · Vue 3 + Vite"]
+    VIEWS["Dashboard · Picks · Decision<br/>Backtest · Pipeline"]
+  end
+
+  subgraph BE["backend/ 交付层 · FastAPI 单 worker"]
+    API["main.py<br/>14 个 /api 路由 + 托管 dist"]
+    PIPE["pipeline.py<br/>subprocess 串行编排"]
+    DSVC["data_service.py<br/>按 current_run 指针读产物"]
+  end
+
+  subgraph SRC["src/ 策略与产物层"]
+    CLIS["CLI 入口<br/>fetch_data · train · decide · account · forward"]
+    CORE["market · models · portfolio · simulation<br/>research · runs · artifacts"]
+  end
+
+  DB[("data/market.duckdb")]
+  OUT[("output/runs/run_id<br/>+ current_run.json 指针")]
+  RESEARCH["research/ 离线研究区"]
+
+  VIEWS -->|"HTTP /api"| API
+  API --> DSVC
+  API --> PIPE
+  PIPE -. "subprocess.Popen" .-> CLIS
+  CLIS --> CORE
+  CORE --> DB
+  CORE --> OUT
+  DSVC --> OUT
+  RESEARCH -->|"单向复用"| CORE
+```
+
+分层约束：
+
+| 目录 | 层 | 允许依赖 | 不得依赖 |
+| --- | --- | --- | --- |
+| `frontend/` | 交付层 | `backend/` 的 HTTP 接口 | `src/`、`research/` |
+| `backend/` | 交付层 | `src/`（`src.runs` 解析产物指针、`src.utils` 代码转换） | `research/` |
+| `src/` | 策略与产物层 | 标准库与第三方包 | `backend/`、`frontend/`、`research/` |
+| `research/` | 离线研究区 | `src/` | `backend/`、`frontend/` |
+
+两点需要说明：
+
+- **长任务走子进程，不走 import。** 训练与决策由 `pipeline.py` 用 `subprocess.Popen` 运行 `python -m src.*`，所以后端与策略代码之间只有「命令行 + 文件产物」两种耦合。后端 import `src/` 仅用于读产物路径与做代码转换，不执行策略计算。
+- **`src/` 不依赖 `backend/`。** 共享的 JSON 原子写入工具在 `src/artifacts.py`（原先位于 `backend/artifacts.py`，被 `src/` 与 `research/` 反向依赖，已归位）。
+
 ## 安装与启动
 
 在项目根目录使用 Python 3.10+ 的虚拟环境：

@@ -8,7 +8,7 @@ from pathlib import Path
 import pandas as pd
 from filelock import FileLock
 import config
-from backend.artifacts import write_json_atomic
+from src.artifacts import write_json_atomic
 
 
 def _positive(value, name, allow_zero=False):

@@ -17,7 +17,7 @@ import numpy as np
 import pandas as pd
 
 import config
-from backend.artifacts import finite_float
+from src.artifacts import finite_float
 from src.utils import load_names, picks_table
 from src.runs import artifact_path
 

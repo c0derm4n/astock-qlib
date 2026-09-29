@@ -4,6 +4,27 @@
 
 严格十年2016-09-12—2026-09-11，最新现金分红回放从现金重新建仓扣费：策略年化15.97%，人民币SPY为15.34%；年度最大回撤均值13.23%与13.55%，日均回撤7.48%与3.42%。两种平均回撤口径给出不同结论，仍待用户确认验收定义。该现金模型仍为独立研究，尚未替换每日入口的原冻结策略。
 
+## 日频风险叠加研究候选
+
+`risk_overlay_protocol.json` 登记的 **`trend200_vol15`**（固定配置 + 200 日趋势门槛 + 15% 波动预算）是用户偏好的**日频历史研究候选**。其已查看历史中的描述性证据如下：
+
+- `ex_nasdaq` 的95个登记配置与本目录6个风险叠加变体 × 3个压力情景属于不同研究层次；压力情景不是独立策略，不能相加为“全项目113个独立候选”，也不能据此宣称全项目最优。
+- 日频基础情景中，`trend200_vol15` CAGR 9.53%、全期最大回撤13.08%、最差完整年度−4.05%（2018）；CAGR/回撤幅度约0.73。该比值只是已测情景的描述，不是普适的最优性证明，且CAGR未达到当前13.50%目标。
+- 同组只加趋势的`trend200`为12.23%／26.45%／−4.05%（CAGR／最大回撤幅度／最差年）。用户更偏好前者较低的历史回撤；这不意味着15%波动预算可保证未来风险。
+
+**所属层次**：本目录只提供**风险叠加层**（趋势门槛 + 波动预算缩仓）；基础候选与 30 只池来自 `research/ex_nasdaq` 的冻结文件（`selected_strategy.json` 的 `communication60_gold35`、`core.py` 的 `market30`）。`ex_nasdaq` 不引用本目录，依赖单向。所以本候选不是与 `ex_nasdaq` 并列的另一条线，而是它的叠加层。
+
+```powershell
+# 登记 6 变体 × 3 情景
+.venv\Scripts\python.exe -m research.goal30.risk_overlay --register
+# 运行已登记的 18 个 case
+.venv\Scripts\python.exe -m research.goal30.risk_overlay --run <登记目录>
+```
+
+产物在 `output/goal30/risk_overlay/<run_id>/`：`results.json` 含 18 个 case 的指标与 checks，每个 case 另有 report/trades/actions/holdings/signals/benchmark CSV。
+
+2026-09-23完成的[周频核实](../../docs/STRATEGY_AB_AUDIT_20260923.md)中，同一候选按每周首交易日收盘决策、次交易日开盘执行，全期CAGR 7.49%、最差年−6.83%（2021）、最大回撤15.73%；年度−5%门槛未过，24个周频情景均未满足当前三项联合目标。该周频研究采用`weekly_transfer.py`及独立协议；`weekly_goal.py`是旧5%/10%回撤与10%/30%回撤双档协议，不能混同。**研究候选未切换为正式策略，也未获得实盘准入。**
+
 ## 运行
 
 ```powershell

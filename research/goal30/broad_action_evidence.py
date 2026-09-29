@@ -7,7 +7,7 @@ from datetime import date
 from decimal import Decimal
 from pathlib import Path
 
-from backend.artifacts import write_json_atomic
+from src.artifacts import write_json_atomic
 from research.goal30.audit import BASE
 from research.goal30.bond_dividend_evidence import digest
 from research.goal30.turnover_budget import require

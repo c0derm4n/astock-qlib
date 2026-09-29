@@ -11,7 +11,7 @@ from matplotlib import font_manager
 import matplotlib.ticker as mtick
 import pandas as pd
 
-from backend.artifacts import write_json_atomic
+from src.artifacts import write_json_atomic
 from research.goal30.audit import BASE
 from research.goal30.bond_dividend_evidence import digest
 from research.goal30.primary_research_series import read

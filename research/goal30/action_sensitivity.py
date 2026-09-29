@@ -10,7 +10,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from backend.artifacts import write_json_atomic
+from src.artifacts import write_json_atomic
 from research.ex_nasdaq.core import market30, execute
 from research.ex_nasdaq.replay import load_selected
 from research.goal30.audit import BASE, OUT, SELECTED, comparison

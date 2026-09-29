@@ -18,7 +18,7 @@ from collections import deque
 
 import config
 from backend import data_service
-from backend.artifacts import finite_float, json_safe, write_json_atomic
+from src.artifacts import finite_float, json_safe, write_json_atomic
 from src.runs import artifact_path
 
 BASE_DIR = config.BASE_DIR

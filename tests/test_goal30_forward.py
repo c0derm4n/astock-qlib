@@ -10,7 +10,7 @@ from unittest.mock import patch
 import pandas as pd
 import exchange_calendars as xcals
 
-from backend.artifacts import write_json_atomic
+from src.artifacts import write_json_atomic
 from research.goal30 import daily, forward
 from src.account import apply_fills, initialize
 

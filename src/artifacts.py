@@ -1,4 +1,4 @@
-"""Web 产物的数值清洗与原子写入，避免读到半份 JSON。"""
+"""JSON 产物的数值清洗与原子写入，避免读到半份 JSON。"""
 from __future__ import annotations
 
 import json

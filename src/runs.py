@@ -9,7 +9,7 @@ import uuid
 from pathlib import Path
 import pandas as pd
 import config
-from backend.artifacts import write_json_atomic
+from src.artifacts import write_json_atomic
 
 
 def sha256(path):
@@ -50,7 +50,7 @@ def read_protocol():
 
 
 def code_fingerprint():
-    paths = [config.BASE_DIR / "config.py", config.BASE_DIR / "universe.py", config.BASE_DIR / "backend" / "artifacts.py"]
+    paths = [config.BASE_DIR / "config.py", config.BASE_DIR / "universe.py"]
     paths += sorted((config.BASE_DIR / "src").rglob("*.py"))
     hashes = {str(p.relative_to(config.BASE_DIR)).replace("\\", "/"): sha256(p) for p in paths}
     digest = hashlib.sha256(json.dumps(hashes, sort_keys=True).encode()).hexdigest()

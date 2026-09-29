@@ -9,7 +9,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from backend.artifacts import write_json_atomic
+from src.artifacts import write_json_atomic
 
 BASE = Path(__file__).resolve().parents[2]
 ROOT = BASE / 'output/goal30/risk_overlay'

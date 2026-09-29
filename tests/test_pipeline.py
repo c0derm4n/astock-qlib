@@ -9,7 +9,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from backend import pipeline
-from backend.artifacts import write_json_atomic
+from src.artifacts import write_json_atomic
 
 
 class PipelineTests(unittest.TestCase):
@@ -138,7 +138,7 @@ class PipelineTests(unittest.TestCase):
     def test_atomic_write_failure_preserves_previous_metrics(self):
         path = pipeline.METRICS_FILE
         path.write_text('{"version":1}', encoding="utf-8")
-        with patch("backend.artifacts.os.replace", side_effect=OSError("busy")):
+        with patch("src.artifacts.os.replace", side_effect=OSError("busy")):
             with self.assertRaises(OSError):
                 write_json_atomic(path, {"version": 2})
         self.assertEqual(json.loads(path.read_text()), {"version": 1})

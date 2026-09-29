@@ -9,7 +9,7 @@ from unittest.mock import patch
 import numpy as np
 import pandas as pd
 import config
-from backend.artifacts import write_json_atomic
+from src.artifacts import write_json_atomic
 from src.account import initialize, apply_fills, apply_actions
 from src.forward import freeze_signal, record_close, forward_evidence, observation_dir
 from src.models import learn_bundle, predict_bundle, fit_production

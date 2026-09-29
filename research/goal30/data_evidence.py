@@ -14,7 +14,7 @@ import pandas as pd
 import requests
 from bs4 import BeautifulSoup
 
-from backend.artifacts import write_json_atomic
+from src.artifacts import write_json_atomic
 from research.ex_nasdaq.core import SYMBOLS
 from research.goal30.audit import OUT
 
