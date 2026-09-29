@@ -1,0 +1,68 @@
+{
+  "version": "goal30-weekly-transfer-1",
+  "hypothesis": "把决策节奏从每日降为每周一次之后，趋势门槛与波动预算能否继续在通信与宽基两个资产上改善风险；周频相对日频的退出延迟代价有多大。",
+  "research_status": "已看过全区间及95个历史候选后的探索，不是独立样本外检验；本协议独立登记，不修改或替代 research/goal30/weekly_goal_protocol.json 的旧口径。",
+  "start": "2016-09-12",
+  "end": "2026-09-11",
+  "source": "output/runs/20260912-220345-f20ea3f5",
+  "baseline_archive": "output/goal30/cash_replay/20260913-152542-31f263cf",
+  "benchmark": "output/sp500_exploration/benchmarks/20260913-080721",
+  "comparison": {"max_cagr_shortfall": 0.02, "min_cumulative_ratio": 0.85},
+  "cadence": "weekly_first_session",
+  "goals": {
+    "conservative": {"cagr": 0.05, "worst_complete_year": -0.05},
+    "advanced": {"cagr": 0.135, "max_drawdown": 0.40}
+  },
+  "candidates": [
+    {
+      "name": "communication60_gold35",
+      "family": "fixed",
+      "weights": {"SH515880": 0.6, "SH518880": 0.35},
+      "fallbacks": {"SH515880": {"SH510300": 1.0}}
+    },
+    {
+      "name": "csi300_60_gold35",
+      "family": "fixed",
+      "weights": {"SH510300": 0.6, "SH518880": 0.35}
+    }
+  ],
+  "variants": [
+    {"name": "weekly_none", "trend_window": null, "vol_target": null},
+    {"name": "weekly_trend200", "trend_window": 200, "vol_target": null},
+    {"name": "weekly_vol15", "trend_window": null, "vol_target": 0.15},
+    {"name": "weekly_trend200_vol15", "trend_window": 200, "vol_target": 0.15}
+  ],
+  "scenarios": [
+    {"name": "base", "slippage_multiplier": 1.0, "payment_delay_sessions": 0},
+    {"name": "slippage_2", "slippage_multiplier": 2.0, "payment_delay_sessions": 0},
+    {"name": "payment_delay_5", "slippage_multiplier": 1.0, "payment_delay_sessions": 5}
+  ],
+  "slices": [
+    {"name": "full", "start": "2016-09-12", "end": "2026-09-11"},
+    {"name": "to2024", "start": "2016-09-12", "end": "2024-12-31"},
+    {"name": "post515880", "start": "2020-11-04", "end": "2026-09-11"},
+    {"name": "post515880_to2024", "start": "2020-11-04", "end": "2024-12-31"},
+    {"name": "y2025", "start": "2024-12-31", "end": "2025-12-31"}
+  ],
+  "rules": {
+    "cadence": "每周首个观察交易日收盘运行完整调仓逻辑；其余交易日不评估、不产生订单，保持既有仓位与目标；次一交易日开盘执行",
+    "universe": "严格沿用冻结30只池，只持有515880、518880、510300与现金",
+    "allocation": "两个候选均为固定权重60%权益腿/35%黄金/至少5%现金；通信候选在515880当日资格不合格时以合格510300承接",
+    "trend": "信号日收盘复权价严格高于包括当日在内的N日简单均价才保留该资产；不足N条连续有效价格或等于均价均转现金",
+    "volatility": "启用方案使用现有60日协方差、252日年化和已有约束，仅缩仓不加杠杆",
+    "trigger": "沿用现有触发规则：资格/趋势失效、退出完成前禁止回补、目标与当前偏离小于3个百分点不交易、每日共享换手预算、100份整数买入、2%成交额参与率与现金约束",
+    "corporate_actions": "复用冻结基线的登记权益、除息应收、支付到账及拆分处理，不改写冻结回放代码",
+    "isolation": "本实验只写入 output/goal30/weekly_transfer，不修改既有冻结协议、产物或生产指针"
+  },
+  "evaluation": {
+    "metrics": ["cagr", "worst_complete_year", "max_drawdown", "mean_daily_drawdown", "mean_annual_max_drawdown", "annual_returns", "exposure", "turnover", "decision_days", "trade_days"],
+    "questions": [
+      "周频节奏下风控是否仍在两个资产上有效",
+      "周频相对同一规则的日频结果损失多少收益、换来什么",
+      "决策日与成交日是否严格落在一周一次与其次一交易日"
+    ],
+    "requirements": "保守档 base 情景年化≥5%且最差完整年度≥-5%；进阶档 base 情景年化≥13.5%且全期最大回撤≤40%；两个压力情景同时披露，任一情景不满足不得写成无条件达标",
+    "stress": "4个变体都运行基础、滑点加倍、支付延迟5日，保留24个完整结果；不得只对表现最好的变体报告压力结果",
+    "promotion": "不自动切换正式或每日策略；本实验不构成投资准入，也不改变生产指针"
+  }
+}

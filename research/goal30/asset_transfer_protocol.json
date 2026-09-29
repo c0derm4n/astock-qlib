@@ -1,0 +1,64 @@
+{
+  "version": "goal30-asset-transfer-1",
+  "hypothesis": "把历史上事后选出的通信ETF换成宽基沪深300ETF，趋势门槛、波动预算、执行与成本逐项不变，检验风控框架的风险改善是否独立于资产选择；同时把月频调仓与日频管理的差异从趋势门的贡献中分离出来。",
+  "research_status": "已看过全区间及95个历史候选后的探索，不是独立样本外检验；本实验不重新选择资产，也不新增参数搜索，只做迁移与分解。",
+  "start": "2016-09-12",
+  "end": "2026-09-11",
+  "source": "output/runs/20260912-220345-f20ea3f5",
+  "baseline_archive": "output/goal30/cash_replay/20260913-152542-31f263cf",
+  "benchmark": "output/sp500_exploration/benchmarks/20260913-080721",
+  "comparison": {"max_cagr_shortfall": 0.02, "min_cumulative_ratio": 0.85},
+  "candidates": [
+    {
+      "name": "communication60_gold35",
+      "family": "fixed",
+      "weights": {"SH515880": 0.6, "SH518880": 0.35},
+      "fallbacks": {"SH515880": {"SH510300": 1.0}}
+    },
+    {
+      "name": "csi300_60_gold35",
+      "family": "fixed",
+      "weights": {"SH510300": 0.6, "SH518880": 0.35}
+    }
+  ],
+  "variants": [
+    {"name": "monthly_none", "cadence": "monthly", "trend_window": null, "vol_target": null},
+    {"name": "daily_none", "cadence": "daily", "trend_window": null, "vol_target": null},
+    {"name": "daily_trend200", "cadence": "daily", "trend_window": 200, "vol_target": null},
+    {"name": "daily_vol15", "cadence": "daily", "trend_window": null, "vol_target": 0.15},
+    {"name": "daily_trend200_vol15", "cadence": "daily", "trend_window": 200, "vol_target": 0.15}
+  ],
+  "scenarios": [
+    {"name": "base", "slippage_multiplier": 1.0, "payment_delay_sessions": 0},
+    {"name": "slippage_2", "slippage_multiplier": 2.0, "payment_delay_sessions": 0},
+    {"name": "payment_delay_5", "slippage_multiplier": 1.0, "payment_delay_sessions": 5}
+  ],
+  "slices": [
+    {"name": "full", "start": "2016-09-12", "end": "2026-09-11"},
+    {"name": "to2024", "start": "2016-09-12", "end": "2024-12-31"},
+    {"name": "post515880", "start": "2020-11-04", "end": "2026-09-11"},
+    {"name": "post515880_to2024", "start": "2020-11-04", "end": "2024-12-31"},
+    {"name": "y2025", "start": "2024-12-31", "end": "2025-12-31"}
+  ],
+  "rules": {
+    "universe": "严格沿用冻结30只池，只持有515880、518880、510300与现金",
+    "allocation": "两个候选均为固定权重60%权益腿/35%黄金/至少5%现金；通信候选在515880当日资格不合格时以合格510300承接",
+    "cadence": "monthly 变体沿用冻结基线的月末刷新目标；daily 变体每天收盘按当时的资格、趋势与波动重算目标",
+    "trend": "信号日收盘复权价严格高于含当日在内的N日简单均价才保留该资产；不足N条连续有效价格或等于均价均转现金",
+    "volatility": "启用方案按过去60交易日协方差、252日年化估计组合波动，超目标时同比例缩仓，不加杠杆；未启用方案保持observe_only",
+    "timing": "每天收盘计算，下一交易日开盘执行；沿用3个百分点漂移带、100份买入、现金约束、2%成交额参与率和既有成交引擎",
+    "corporate_actions": "复用冻结基线的登记权益、除息应收、支付到账及拆分处理，不改写冻结回放代码",
+    "isolation": "本实验只写入 output/goal30/asset_transfer，不修改既有冻结协议、产物或生产指针"
+  },
+  "evaluation": {
+    "metrics": ["cagr", "max_drawdown", "mean_daily_drawdown", "mean_annual_max_drawdown", "annual_returns", "exposure", "turnover"],
+    "questions": [
+      "把通信换成沪深300后，同一套风控还剩多少效果",
+      "趋势门槛与波动预算两个旋钮在不同资产上是否各自仍然有效",
+      "收益与风险是否依赖特定阶段（2025单年、通信可用段）"
+    ],
+    "reporting": "全部30例结果保留，包括未达标情景；分段指标与全期指标并列报告，不挑选最好的时段",
+    "requirements": "不做达标判定，只做对照与分解；任何结论都必须说明已查看历史与单一年份依赖",
+    "promotion": "不自动切换正式或每日策略；本实验不构成投资准入，也不改变生产指针"
+  }
+}

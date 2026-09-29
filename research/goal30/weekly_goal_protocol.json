@@ -1,0 +1,42 @@
+{
+  "version": "goal30-weekly-goal-1",
+  "hypothesis": "每周运行一次、仅在触发条件满足时调仓，并用趋势门槛与波动预算约束固定通信/黄金配置：较低波动预算档位应能把十年最大回撤压到10%以内（保守档），较高波动预算档位争取年化10%以上（进阶档），同时保留参与长期上行的能力。",
+  "research_status": "已查看全区间历史与95个历史配置后的探索；不是独立样本外检验；不改变原候选行业与权重",
+  "start": "2016-09-12",
+  "end": "2026-09-11",
+  "baseline_archive": "output/goal30/cash_replay/20260913-152542-31f263cf",
+  "cadence": "weekly_first_session",
+  "goals": {
+    "conservative": {"cagr": 0.05, "max_drawdown": 0.10},
+    "advanced": {"cagr": 0.10, "max_drawdown": 0.30}
+  },
+  "variants": [
+    {"name": "trend200_vol12", "preset": "conservative", "trend_window": 200, "vol_target": 0.12},
+    {"name": "trend200_vol10", "preset": "conservative", "trend_window": 200, "vol_target": 0.10},
+    {"name": "trend240_vol10", "preset": "conservative", "trend_window": 240, "vol_target": 0.10},
+    {"name": "trend200_vol20", "preset": "advanced", "trend_window": 200, "vol_target": 0.20},
+    {"name": "trend240_vol20", "preset": "advanced", "trend_window": 240, "vol_target": 0.20},
+    {"name": "trend200_vol25", "preset": "advanced", "trend_window": 200, "vol_target": 0.25}
+  ],
+  "scenarios": [
+    {"name": "base", "slippage_multiplier": 1.0, "payment_delay_sessions": 0},
+    {"name": "slippage_2", "slippage_multiplier": 2.0, "payment_delay_sessions": 0},
+    {"name": "payment_delay_5", "slippage_multiplier": 1.0, "payment_delay_sessions": 5}
+  ],
+  "rules": {
+    "cadence": "每周首个观察交易日收盘运行完整调仓逻辑；其余交易日不评估、不产生订单，保持既有仓位与目标；次一交易日开盘执行",
+    "universe": "严格沿用冻结30只池；仍只持有原固定候选及资格代理涉及的515880、518880、510300",
+    "allocation": "60%通信ETF与35%黄金ETF；通信本身市场资格不满足时才用合格沪深300代理，资格代理再接受自身趋势检查",
+    "trend": "信号日收盘复权价严格高于包括当日在内的N日简单均价才保留该资产；不足N条连续有效价格或等于均价均转现金；不把趋势退出当成切换沪深300的市场资格理由",
+    "volatility": "启用方案使用现有60日协方差、252日年化和已有约束，仅缩仓不加杠杆",
+    "trigger": "沿用现有触发规则：资格/趋势失效、退出完成前禁止回补、目标与当前偏离小于3个百分点不交易、30%每日共享换手预算、100份整数买入、2%成交额参与率与现金约束",
+    "corporate_actions": "复用原现金回放的登记权益、除息应收、支付到账及拆分处理，不改写冻结回放代码"
+  },
+  "evaluation": {
+    "metrics": ["cagr", "max_drawdown", "mean_daily_drawdown", "mean_annual_max_drawdown", "annual_returns", "exposure", "turnover"],
+    "benchmark": "冻结SPY含分红再投资人民币序列，相同中国交易日；仅作披露，不作为本轮判定",
+    "requirements": "保守档 base 情景年化≥5%且全期最大回撤≤10%；进阶档 base 情景年化≥10%且全期最大回撤≤30%；两个压力情景同时披露，任一情景不满足不得写成无条件达标",
+    "stress": "所有6个变体都运行基础、滑点加倍、支付延迟5日，保留18个完整结果；不得只对表现最好的变体报告压力结果",
+    "promotion": "不自动切换正式或每日策略；历史选择偏差、公司行动/目录缺口、实际账户与真实前瞻要求继续保留"
+  }
+}
