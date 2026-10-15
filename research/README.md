@@ -16,7 +16,7 @@
 
 | 文件夹 | 定位 | 输出目录 |
 | --- | --- | --- |
-| [sp500/](sp500/README.md) | 固定31只ETF对标标普500的探索与验证 | `output/sp500_exploration/` |
+| [sp500/](sp500/README.md) | 纳指65%＋黄金30%策略的冻结历史归档；不再是当前候选 | `output/sp500_exploration/` |
 | [ex_nasdaq/](ex_nasdaq/README.md) | 剔除纳指后30只ETF的独立历史研究 | `output/sp500_ex_nasdaq/` |
 | [goal30/](goal30/README.md) | 30只ETF目标的核验、每日观察与周度双档目标 | `output/goal30/` |
 | [prod_candidate/](prod_candidate/README.md) | `src/` 生产线候选的扩展窗口滚动回测（2018-2025） | `output/prod_candidate/` |
@@ -35,9 +35,9 @@
 4. **独立核查**——`verify_*.py` / `validate_*.py` 单独复核算术、逐笔成交、规则拒绝、时期依赖与原件指纹。
 5. **输出隔离**——各写各的目录，互不覆盖。
 
-## sp500/ — 固定31只ETF对标标普500
+## sp500/ — 纳指/黄金策略冻结历史归档
 
-**定位**：独立开发研究。`selected_strategy.json` 固定 65% 纳指ETF、30% 黄金、5% 现金；纳指不合格时用合格恒生ETF代理。观察波动但不以波动择时，仓位、集中度、流动性、当时已公告规模、费用与次日成交限制仍然生效。
+**定位**：2026-10-13按用户要求归档并冻结。投资标的仅限非美股，该方案不再作为当前候选、后续优化方向或待准入策略，不再开展新增纳指配置探索。原 `selected_strategy.json` 的65%纳指ETF、30%黄金、5%现金及恒生资格代理规则保留为历史记录，不能用于生产。外置状态及保留文件哈希见 [archive_status.json](sp500/archive_status.json)。共享计算工具仍可服务其他非美股研究。
 
 **内容**：6 轮候选登记（`candidates*.json`）、3 轮完整验证（`validation_protocol*.json`），34 个含基线与不利结果的候选全部保留。`benchmark.py` 只取独立基准快照，不改变 ETF 正式行情库。
 
@@ -49,7 +49,7 @@ python -m research.sp500.benchmark --end 2026-09-11          # 可选：取新�
 python -m research.sp500.explore --registry research/sp500/candidates_round6_long.json
 ```
 
-**状态**：两个主区间的收益接近目标已验证；完整历史审计、126 个真实前瞻日及原 20% 回撤准入要求**未满足**。[验收报告](../docs/SP500_STRATEGY_ACCEPTANCE.md)
+**状态**：`archived_frozen`。下列入口仅是原实验的历史记录；归档后仅允许历史审计复核，不运行新增探索或重写冻结文件。旧收益接近及准入未通过的结论保留。[原验收报告](../docs/SP500_STRATEGY_ACCEPTANCE.md)
 
 ## ex_nasdaq/ — 剔除纳指后的30只ETF
 
