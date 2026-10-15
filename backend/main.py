@@ -1,7 +1,7 @@
-"""FastAPI 入口：把 README 的四步管道与结果查询包装成 HTTP 接口。
+"""FastAPI 入口：正式双策略服务与开发后台。
 
 启动（在项目根目录）：
-    uvicorn backend.main:app --host 0.0.0.0 --port 8000
+    uvicorn backend.main:app --host 127.0.0.1 --port 8000
 
 生产模式下若 frontend/dist 存在，会自动托管前端静态文件（单端口访问）。
 注意：任务状态保存在内存中，只能用单进程(单 worker)运行。
@@ -18,8 +18,12 @@ import config
 import universe
 from backend import BASE_DIR, data_service, pipeline
 from src.utils import to_qlib_symbol
+from backend.strategy_api import router as strategy_router
+from backend.development_api import router as development_router
 
-app = FastAPI(title="A股ETF轮动研究系统 API", version="2.1.0")
+app = FastAPI(title="A股ETF双策略与开发后台 API", version="3.1.0")
+app.include_router(strategy_router)
+app.include_router(development_router)
 
 
 @app.exception_handler(data_service.ArtifactUnavailableError)
@@ -29,7 +33,7 @@ async def artifact_unavailable(request: Request, exc: data_service.ArtifactUnava
 # 开发模式前端跑在 vite(5173)，放开跨域；生产由本服务托管静态文件，无跨域
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -206,5 +210,10 @@ def pipeline_logs(step: str, tail: int = Query(2000, ge=1, le=10000)) -> str:
 # 必须放在所有 /api 路由之后挂载
 # ---------------------------------------------------------------------------
 _DIST = BASE_DIR / "frontend" / "dist"
+# 旧接口保留兼容历史脚本，新的开发后台只暴露正式双策略接口文档。
+for _route in app.routes:
+    _path = getattr(_route, 'path', '')
+    if _path.startswith('/api/') and _path != '/api/health' and not _path.startswith(('/api/strategies', '/api/development')):
+        _route.include_in_schema = False
 if _DIST.is_dir():
     app.mount("/", StaticFiles(directory=_DIST, html=True), name="spa")

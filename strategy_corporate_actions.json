@@ -1,0 +1,110 @@
+{
+  "verified_through": "2026-09-11",
+  "actions": [
+    {
+      "type": "cash_dividend",
+      "record_date": "2026-01-16",
+      "ex_date": "2026-01-19",
+      "cash_per_share": 0.123,
+      "payment_date": "2026-01-27",
+      "symbol": "SH510300",
+      "event_id": "SH510300-dividend-2026-01-19"
+    },
+    {
+      "type": "cash_dividend",
+      "record_date": "2025-06-17",
+      "ex_date": "2025-06-18",
+      "cash_per_share": 0.088,
+      "payment_date": "2025-06-27",
+      "symbol": "SH510300",
+      "event_id": "SH510300-dividend-2025-06-18"
+    },
+    {
+      "type": "cash_dividend",
+      "record_date": "2024-01-17",
+      "ex_date": "2024-01-18",
+      "cash_per_share": 0.06899999999999999,
+      "payment_date": "2024-01-23",
+      "symbol": "SH510300",
+      "event_id": "SH510300-dividend-2024-01-18"
+    },
+    {
+      "type": "cash_dividend",
+      "record_date": "2023-01-13",
+      "ex_date": "2023-01-16",
+      "cash_per_share": 0.064,
+      "payment_date": "2023-01-19",
+      "symbol": "SH510300",
+      "event_id": "SH510300-dividend-2023-01-16"
+    },
+    {
+      "type": "cash_dividend",
+      "record_date": "2022-01-18",
+      "ex_date": "2022-01-19",
+      "cash_per_share": 0.075,
+      "payment_date": "2022-01-24",
+      "symbol": "SH510300",
+      "event_id": "SH510300-dividend-2022-01-19"
+    },
+    {
+      "type": "cash_dividend",
+      "record_date": "2021-01-15",
+      "ex_date": "2021-01-18",
+      "cash_per_share": 0.072,
+      "payment_date": "2021-01-21",
+      "symbol": "SH510300",
+      "event_id": "SH510300-dividend-2021-01-18"
+    },
+    {
+      "type": "cash_dividend",
+      "record_date": "2019-12-10",
+      "ex_date": "2019-12-11",
+      "cash_per_share": 0.062,
+      "payment_date": "2019-12-16",
+      "symbol": "SH510300",
+      "event_id": "SH510300-dividend-2019-12-11"
+    },
+    {
+      "type": "cash_dividend",
+      "record_date": "2019-01-15",
+      "ex_date": "2019-01-16",
+      "cash_per_share": 0.059,
+      "payment_date": "2019-01-21",
+      "symbol": "SH510300",
+      "event_id": "SH510300-dividend-2019-01-16"
+    },
+    {
+      "type": "cash_dividend",
+      "record_date": "2018-01-22",
+      "ex_date": "2018-01-23",
+      "cash_per_share": 0.046,
+      "payment_date": "2018-01-26",
+      "symbol": "SH510300",
+      "event_id": "SH510300-dividend-2018-01-23"
+    },
+    {
+      "type": "cash_dividend",
+      "record_date": "2017-01-20",
+      "ex_date": "2017-01-23",
+      "cash_per_share": 0.05500000000000001,
+      "payment_date": "2017-01-26",
+      "symbol": "SH510300",
+      "event_id": "SH510300-dividend-2017-01-23"
+    },
+    {
+      "type": "split",
+      "effective_date": "2026-02-03",
+      "ratio": 3.0,
+      "symbol": "SH515880",
+      "event_id": "SH515880-split-2026-02-03"
+    },
+    {
+      "type": "split",
+      "effective_date": "2026-07-06",
+      "ratio": 2.0,
+      "symbol": "SH515880",
+      "event_id": "SH515880-split-2026-07-06"
+    }
+  ],
+  "audit_complete": false
+}
