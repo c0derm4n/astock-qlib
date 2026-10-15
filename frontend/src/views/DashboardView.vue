@@ -1,130 +1,39 @@
 <template>
-  <div v-loading="loading">
-    <el-alert v-if="acceptance" class="mb16" :type="acceptance.gate.approved ? 'success' : 'warning'" :closable="false"
-      :title="acceptance.gate.approved ? '研究验收满足预设门槛，仍需人工投资审核' : '投资准入未通过：当前仅限模拟研究'"
-      :description="`前瞻观察 ${acceptance.gate.forward_days} 个交易日；未通过项：${gateFailures(acceptance.gate.failed_checks)}`" />
-    <el-empty v-if="!metrics && !picks.length" description="暂无数据：请先到「数据管道」运行 训练(train)" />
-    <template v-else>
-      <!-- 预测质量 -->
-      <el-card v-if="metrics" class="mb16">
-        <template #header>
-          <span>预测质量（滚动历史研究）</span>
-          <span class="card-sub">训练时间：{{ metrics.finished_at || '-' }}<template v-if="metrics.data_version">　数据版本：{{ metrics.data_version }}</template></span>
-        </template>
-        <el-row :gutter="16">
-          <el-col :span="6"><el-statistic title="IC均值" :value="fmt(metrics.ic?.['IC均值'])" /></el-col>
-          <el-col :span="6"><el-statistic title="ICIR" :value="fmt(metrics.ic?.['ICIR'])" /></el-col>
-          <el-col :span="6"><el-statistic title="RankIC均值" :value="fmt(metrics.ic?.['RankIC均值'])" /></el-col>
-          <el-col :span="6"><el-statistic title="RankICIR" :value="fmt(metrics.ic?.['RankICIR'])" /></el-col>
-        </el-row>
-        <div class="hint">相关系数应结合时间相关性校正后的置信区间判断，单一阈值不能证明策略有效。</div>
-      </el-card>
-
-      <!-- 回测概览 -->
-      <el-card v-if="bt && Object.keys(bt).length" class="mb16">
-        <template #header>
-          <span>回测概览（固定研究协议）</span>
-          <span class="card-sub">区间：{{ bt.start }} ~ {{ bt.end }}（轮动最多 {{ bt.topk }} 只ETF，底仓另计<template v-if="bt.slippage_bps != null">，滑点 {{ bt.slippage_bps }}bp</template>）</span>
-        </template>
-        <el-row :gutter="16">
-          <el-col :span="4">
-            <el-statistic title="策略累计收益(扣费)" :value="pct(bt.strategy_cum_return_pct)" />
-          </el-col>
-          <el-col :span="4">
-            <el-statistic title="沪深300ETF参考" :value="pct(bt.hs300_cum_return_pct)" />
-          </el-col>
-          <el-col :span="4">
-            <el-statistic title="等权ETF参考" :value="pct(bt.eqw_cum_return_pct)" />
-          </el-col>
-          <el-col :span="4">
-            <el-statistic title="策略复合年化" :value="pct(bt.strategy_annual_pct)" />
-          </el-col>
-          <el-col :span="4"><el-statistic title="策略最大回撤" :value="pct(bt.strategy_max_drawdown_pct)" /></el-col>
-          <el-col :span="4">
-            <el-statistic title="股债金参考累计" :value="pct(acceptance?.summaries?.balanced?.cumulative_return == null ? null : acceptance.summaries.balanced.cumulative_return * 100)" />
-          </el-col>
-        </el-row>
-        <div class="hint" v-if="bt.strategy_max_drawdown_pct != null">
-          对照策略均计入成本与建仓过程；沪深300ETF参考采用95%仓位上限，其余保留现金。
-        </div>
-      </el-card>
-
-      <!-- 最新选 ETF -->
-      <el-card v-if="picks.length" class="mb16">
-        <template #header>
-          <span>最新选ETF（{{ picksDate }}）</span>
-          <el-link type="primary" class="card-sub" @click="$router.push('/picks')">查看历史清单 →</el-link>
-        </template>
-        <el-table :data="picks" size="small" style="width: 100%">
-          <el-table-column prop="rank" label="排名" width="80" />
-          <el-table-column prop="code" label="代码" width="120" />
-          <el-table-column prop="name" label="名称" width="160" />
-          <el-table-column prop="score" label="打分">
-            <template #default="{ row }">{{ row.score.toFixed(4) }}</template>
-          </el-table-column>
-        </el-table>
-      </el-card>
-
-      <el-alert type="warning" :closable="false" title="模型打分排名仅作决策支持，不是投资建议；请结合基本面与风控，先模拟盘验证。" />
-    </template>
-  </div>
+  <DevelopmentFrame title="双策略研究总览" subtitle="当前正式登记的两条周频路线。先看年度亏损与回撤，再看收益；模型、账户与数据均对应本页运行快照。" :snapshot="snapshot" :loading="loading" :error="error" @reload="load">
+    <div class="dev-notice warning">正式服务已登记；投资准入仍按目标与审计分别核实。历史选择、完整存续标的审计与真实前瞻验证的限制继续保留。</div>
+    <article v-for="strategy in snapshot.strategies" :key="strategy.id" class="dev-panel overview-strategy" :style="{ '--accent': strategy.color }">
+      <div class="dev-panel-head"><div class="overview-title"><i></i><div><h2>{{ strategy.name }}</h2><p>{{ strategy.description }}</p></div></div><span class="dev-badge" :class="strategy.investment_admission ? 'pass' : 'fail'">v{{ strategy.version }} · {{ strategy.investment_admission ? '投资准入通过' : '投资准入未通过' }}</span></div>
+      <div class="dev-metric-grid">
+        <div class="dev-metric"><span>最差完整年度</span><strong :class="{ 'dev-negative': strategy.metrics.worst_complete_year?.return < 0 }">{{ percent(strategy.metrics.worst_complete_year?.return) }}</strong><em>{{ strategy.metrics.worst_complete_year?.year || '—' }}年 · 目标 ≥−5% <b :class="strategy.goals.worst_complete_year ? 'dev-positive' : 'dev-negative'">{{ goalText(strategy.goals.worst_complete_year) }}</b></em></div>
+        <div class="dev-metric"><span>全期最大回撤</span><strong>{{ percent(strategy.metrics.max_drawdown) }}</strong><em>目标 ≤40% · {{ goalText(strategy.goals.max_drawdown) }}</em></div>
+        <div class="dev-metric"><span>复合年化收益</span><strong>{{ percent(strategy.metrics.cagr) }}</strong><em>目标 ≥13.50% · {{ goalText(strategy.goals.cagr) }}</em></div>
+        <div class="dev-metric"><span>当前模型资金</span><strong>{{ number(strategy.metrics.final_account / 10000) }}<small> 万元</small></strong><em>起始 {{ number(strategy.initial_capital / 10000, 0) }}万元 · 累计 {{ percent(strategy.metrics.cumulative_return) }}</em></div>
+      </div>
+      <div class="overview-account"><div><span>当前账户</span><b>{{ strategy.holdings.length }}只ETF</b><span>现金 {{ number(strategy.cash / 10000) }}万元</span><span v-if="strategy.dividend_receivable">分红应收 {{ number(strategy.dividend_receivable) }}元</span></div><div><span>最新信号</span><b>{{ strategy.advice.signal_date }}</b><span>{{ strategy.advice.orders_count }}笔调仓 · {{ strategy.runtime.advice_label }}</span></div></div>
+      <p class="dev-note">{{ strategy.account_basis }}。{{ strategy.limitations?.join('；') }}。</p>
+      <div class="overview-links"><router-link :to="{ name: 'picks', query: { strategy: strategy.id } }">查看候选与门槛 →</router-link><router-link :to="{ name: 'decision', query: { strategy: strategy.id } }">核对周度调仓 →</router-link><router-link :to="{ name: 'backtest', query: { strategy: strategy.id } }">资金曲线与成交 →</router-link></div>
+    </article>
+    <section class="dev-panel">
+      <div class="dev-panel-head"><div><h2>年度模型与训练切分</h2><p>LightGBM按年训练：前一年验证、更早年份训练；按标签结束日期清除跨界样本。趋势策略使用固定规则，无训练模型。</p></div><span>{{ folds.length }}个年度折</span></div>
+      <div class="dev-table-scroll"><table class="dev-table"><thead><tr><th>测试年度</th><th>模型状态</th><th class="numeric">训练样本</th><th class="numeric">验证样本</th><th>训练标签截止</th><th>验证标签截止</th><th class="numeric">最佳迭代</th></tr></thead><tbody><tr v-for="fold in folds" :key="fold.year"><td>{{ fold.year }}<small v-if="fold.year === modelYear">当前年度模型</small></td><td><span class="dev-badge" :class="fold.available ? 'pass' : 'fail'">{{ fold.available ? '可用' : '不可用' }}</span></td><td class="numeric">{{ number(fold.train_rows, 0) }}</td><td class="numeric">{{ number(fold.valid_rows, 0) }}</td><td>{{ fold.train_last_label_end || '—' }}</td><td>{{ fold.valid_last_label_end || '—' }}</td><td class="numeric">{{ number(fold.best_iteration, 0) }}</td></tr><tr v-if="!folds.length"><td colspan="7" class="dev-empty">当前快照没有年度模型登记。</td></tr></tbody></table></div>
+    </section>
+    <section class="dev-panel">
+      <div class="dev-panel-head"><div><h2>数据覆盖与审计</h2><p>用于判断结果的可复核范围；31只储存标的不等于每条策略的可交易候选。</p></div><router-link :to="{ name: 'pipeline' }">更新正式数据 →</router-link></div>
+      <dl class="audit-grid"><div><dt>行情范围</dt><dd>{{ audit.start || '—' }} — {{ audit.end || snapshot.data_end }}</dd></div><div><dt>价格记录 / 储存标的</dt><dd>{{ number(audit.bars, 0) }}条 / {{ number(audit.symbols, 0) }}只</dd></div><div><dt>行情来源</dt><dd>{{ audit.sources?.join('、') || '—' }}</dd></div><div><dt>规模信息最新日期</dt><dd>{{ audit.nav_latest_information_date || '—' }}</dd></div><div><dt>规模可用原则</dt><dd>报告公告日严格早于信号日</dd></div><div><dt>数据未及时更新的标的</dt><dd>{{ audit.stale_symbols?.join('、') || '无' }}</dd></div><div><dt>历史候选完整性</dt><dd>当前整理候选列表，存续与退市完整性尚未审计</dd></div><div><dt>复权及公司行动</dt><dd>复权因子与已登记分红参与回放；完整公司行动审计尚未通过</dd></div></dl>
+    </section>
+  </DevelopmentFrame>
 </template>
-
 <script setup>
-import { onMounted, ref } from 'vue'
-import api from '../api'
-
-const loading = ref(true)
-const metrics = ref(null)
-const bt = ref({})
-const picks = ref([])
-const picksDate = ref('')
-const acceptance = ref(null)
-const gateLabels = {
-  historical_net_positive: '历史扣费收益', drawdown_within_budget: '回撤预算', majority_full_years_positive: '多数年度盈利',
-  double_slippage_positive: '双倍滑点', excess_vs_momentum_confident: '超越简单动量的统计证据',
-  execution_stress_survives: '执行压力下收益与回撤',
-  forward_observation_sufficient: '前瞻观察时长', historical_universe_audited: '历史标的完整性审计',
-  corporate_actions_audited: '分红与份额变动审计', forward_performance_acceptable: '前瞻表现与执行一致性',
-  full_stress_executed: '完整压力测试', parameter_neighborhood_survives: '参数邻域稳健性', market_data_fresh: '行情时效性',
-  market_coverage_complete: '行情标的覆盖完整性',
-}
-const gateFailures = (keys) => keys.map((key) => gateLabels[key] || key).join('、') || '无'
-
-const fmt = (v) => (v === null || v === undefined ? '-' : Number(v).toFixed(4))
-const pct = (v) => (v === null || v === undefined ? '-' : `${Number(v).toFixed(2)}%`)
-
-onMounted(async () => {
-  try {
-    const [m, p, a] = await Promise.allSettled([api.get('/train/metrics'), api.get('/picks'), api.get('/acceptance', { silentErrors: true })])
-    if (a.status === 'fulfilled') acceptance.value = a.value
-    if (m.status === 'fulfilled') {
-      metrics.value = m.value
-      bt.value = m.value.backtest || {}
-    }
-    if (p.status === 'fulfilled') {
-      picks.value = p.value.rows
-      picksDate.value = p.value.date
-    }
-  } finally {
-    loading.value = false
-  }
-})
+import { computed } from 'vue'
+import DevelopmentFrame from '../components/DevelopmentFrame.vue'
+import { useFormalSnapshot, number, percent, foldRows } from '../composables/useFormalSnapshot'
+const { snapshot, loading, error, load } = useFormalSnapshot()
+const folds = computed(() => foldRows(snapshot.value?.folds))
+const audit = computed(() => snapshot.value?.data_audit || {})
+const modelYear = computed(() => Number(snapshot.value?.data_end?.slice(0, 4)))
+const goalText = value => value ? '达标' : '未达标'
 </script>
-
 <style scoped>
-.mb16 {
-  margin-bottom: 16px;
-}
-.card-sub {
-  float: right;
-  font-size: 13px;
-  color: #909399;
-  font-weight: normal;
-}
-.hint {
-  margin-top: 8px;
-  font-size: 12px;
-  color: #909399;
-}
+.overview-title { display: flex; align-items: flex-start; gap: 12px; }.overview-title > i { width: 3px; height: 36px; margin-top: 3px; border-radius: 3px; background: var(--accent); flex-shrink: 0; }.overview-account { padding: 16px 0; margin-top: 22px; border-top: 1px solid var(--line); display: flex; justify-content: space-between; flex-wrap: wrap; gap: 14px; font-size: 11px; color: var(--muted); }.overview-account > div { display: flex; gap: 15px; flex-wrap: wrap; }.overview-account b { color: #425971; font-weight: 500; }.overview-links { display: flex; gap: 25px; flex-wrap: wrap; font-size: 11px; margin-top: 18px; }.audit-grid { display: grid; grid-template-columns: 1fr 1fr; margin: 0; gap: 0 30px; }.audit-grid > div { border-bottom: 1px solid #edf1f4; padding: 16px 0; }.audit-grid dt { color: var(--muted); font-size: 11px; }.audit-grid dd { color: #485d76; font-size: 12px; margin: 9px 0 0; line-height: 1.8; overflow-wrap: anywhere; }
+@media(max-width: 700px) { .audit-grid { grid-template-columns: 1fr; }.overview-links { gap: 14px; }.overview-account { gap: 15px; } }
 </style>

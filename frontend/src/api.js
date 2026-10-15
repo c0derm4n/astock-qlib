@@ -1,7 +1,7 @@
 import axios from 'axios'
 import { ElMessage } from 'element-plus'
 
-const api = axios.create({ baseURL: '/api', timeout: 30000 })
+const api = axios.create({ baseURL: '/api', timeout: 30000, headers: { 'X-Local-Request': '1' } })
 
 // 统一错误提示；业务码直接取响应 data
 api.interceptors.response.use(

@@ -1,172 +1,63 @@
 <template>
-  <div>
-    <el-card class="mb16">
-      <template #header>
-        <span>管道步骤（与 README 快速开始一致）</span>
-        <el-button class="run-all" type="primary" :disabled="status.running || submitting" @click="run(null)">
-          一键运行 fetch → train
-        </el-button>
-      </template>
-      <el-row :gutter="16">
-        <el-col :span="8" v-for="s in steps" :key="s.key">
-          <el-card shadow="hover">
-            <div class="step-head">
-              <span class="step-name">{{ s.name }}</span>
-              <el-tag :type="tagType(status.steps[s.key])" size="small">{{ tagText(status.steps[s.key]) }}</el-tag>
-            </div>
-            <div class="step-cmd">python -m {{ s.module }}</div>
-            <div class="step-desc">{{ s.desc }}</div>
-            <el-button size="small" :disabled="status.running || submitting" @click="run([s.key])">运行此步</el-button>
-          </el-card>
-        </el-col>
-      </el-row>
-      <div class="status-line">
-        <span v-if="status.started_at">开始：{{ status.started_at }}</span>
-        <span v-if="status.finished_at">　结束：{{ status.finished_at }}</span>
-        <span v-if="status.error" class="err">　{{ status.error }}</span>
-      </div>
-    </el-card>
-
-    <el-card>
-      <template #header>
-        <span>运行日志</span>
-        <span class="card-sub">完整日志见 output/pipeline_logs/</span>
-      </template>
-      <pre ref="logEl" class="log">{{ status.log_tail.join('\n') || '（暂无日志）' }}</pre>
-    </el-card>
-  </div>
+  <DevelopmentFrame title="数据管道" subtitle="统一更新正式双策略：行情校验、年度模型、2016年起周频回放与最新建议一起构建，完成后发布新快照。" :snapshot="snapshot" :loading="loading" :error="error" allow-empty @reload="load">
+    <template #actions><button class="dev-button primary" :disabled="job.running || submitting || !statusReady" @click="run(true)">{{ submitting || job.running ? '任务正在运行…' : '更新行情并重建双策略' }}</button></template>
+    <div v-if="statusError" class="dev-notice error" role="alert">{{ statusError }}<button class="dev-button" @click="poll">重新连接</button></div>
+    <div v-if="submitError || job.error" class="dev-notice error" role="alert">{{ submitError || job.error }}。已完成的正式快照继续保留。</div>
+    <section class="dev-panel"><div class="dev-panel-head"><div><h2>正式双策略构建</h2><p>两种入口都会完整生成模型、历史回放、候选与调仓建议；整个任务只能同时运行一份。</p></div><span class="dev-badge" :class="job.error ? 'fail' : job.finished_at && !job.running ? 'pass' : ''">{{ job.running ? '运行中' : job.error ? '上次任务有错误' : job.finished_at ? '已完成' : '等待任务' }}</span></div>
+      <ol class="formal-phases"><li v-for="(stage, index) in stages" :key="stage.id" :class="{ active: job.running && currentStage === stage.id }"><span>{{ String(index + 1).padStart(2, '0') }}</span><div><b>{{ stage.name }}</b><p>{{ stage.description }}</p></div></li></ol>
+      <div class="pipeline-actions"><button class="dev-button primary" :disabled="job.running || submitting || !statusReady" @click="run(true)">更新行情并重建双策略</button><button class="dev-button" :disabled="job.running || submitting || !statusReady" @click="run(false)">重建模型、回测和建议</button><p>前者抓取并校验增量行情；后者使用已有正式数据库，适合核对规则或重新生成结果。</p></div>
+      <div class="job-status" aria-live="polite"><div v-if="job.running"><span class="dev-spinner"></span><b>{{ stageLabel }}</b><span>{{ job.log_tail?.at(-1) || '正在启动正式构建…' }}</span></div><p v-else>{{ job.finished_at ? `最近任务结束：${formatTime(job.finished_at)}` : '当前没有运行中的正式构建任务。' }}</p><p v-if="job.started_at">开始 {{ formatTime(job.started_at) }}</p></div>
+    </section>
+    <section class="dev-panel"><div class="dev-panel-head"><div><h2>当前发布快照</h2><p>界面与建议始终读取已完成的快照；构建中的中间文件不对外展示。</p></div><button class="dev-button" :disabled="loading" @click="load">刷新发布状态</button></div><div v-if="snapshot" class="published-snapshot"><div><span>运行标识</span><b>{{ snapshot.run_id }}</b></div><div><span>行情截止</span><b>{{ snapshot.data_end }}</b></div><div><span>完成时间</span><b>{{ formatTime(snapshot.completed_at) }}</b></div><div><span>正式策略</span><b>{{ snapshot.strategies.map(item => item.name).join(' / ') }}</b></div></div><div v-else class="dev-empty">尚无可用正式快照，请启动完整构建。</div></section>
+    <section class="dev-panel"><div class="dev-panel-head"><div><h2>运行日志</h2><p>显示本次任务最近120行；错误与行情截止日期需一起核对。</p></div><span>{{ job.running ? '自动更新' : '任务日志' }}</span></div><pre ref="logElement" class="formal-log" aria-label="正式双策略构建日志">{{ job.log_tail?.join('\n') || '当前暂无任务日志。' }}</pre></section>
+  </DevelopmentFrame>
 </template>
-
 <script setup>
-import { nextTick, onMounted, onUnmounted, reactive, ref } from 'vue'
-import { ElMessage } from 'element-plus'
+import { computed, nextTick, onMounted, onBeforeUnmount, ref } from 'vue'
 import api from '../api'
-
-const steps = [
-  { key: 'fetch', name: '1. 抓取行情', module: 'src.fetch_data', desc: '自动选择授权或免费源；核对历史重叠与复权后增量更新' },
-  { key: 'train', name: '2. 训练验收', module: 'src.train', desc: '滚动历史研究、对照与压力测试，生成独立生产模型' },
-  { key: 'decide', name: '3. 模拟决策', module: 'src.decide --paper', desc: '19:00 后用正式收盘数据，生成下一交易日开盘模拟订单' },
-]
-
-const status = reactive({ running: false, current_step: null, steps: {}, started_at: null, finished_at: null, error: null, log_tail: [] })
-const logEl = ref(null)
-const submitting = ref(false)
-let timer = null
-let request = null
-let controller = null
-let disposed = false
-
-const tagType = (s) => ({ running: 'warning', done: 'success', failed: 'danger' }[s] || 'info')
-const tagText = (s) => ({ pending: '等待中', running: '运行中', done: '成功', failed: '失败', skipped: '已跳过' }[s] || '未运行')
-
+import DevelopmentFrame from '../components/DevelopmentFrame.vue'
+import { useFormalSnapshot, requestError, formatTime } from '../composables/useFormalSnapshot'
+const { snapshot, loading, error, load } = useFormalSnapshot()
+const job = ref({ running: false, log_tail: [] }), submitting = ref(false), submitError = ref(''), statusError = ref(''), statusReady = ref(false), logElement = ref(null)
+const stages = [{ id: 'fetch', name: '行情校验', description: '核对历史重叠、复权与增量数据' }, { id: 'model', name: '年度模型', description: 'LightGBM年度训练与验证切分' }, { id: 'backtest', name: '周频回放', description: '两条策略的账户、持仓与成交' }, { id: 'publish', name: '发布建议', description: '校验完整快照后统一发布' }]
+const currentStage = computed(() => ({ train: 'model', decide: 'publish', replay: 'backtest', loading: 'fetch' })[job.value.phase || job.value.current_step] || job.value.phase || job.value.current_step)
+const stageLabel = computed(() => stages.find(stage => stage.id === currentStage.value)?.name || '正在构建正式策略')
+let timer, controller, polling = null, wasRunning = false, disposed = false
 async function poll() {
   if (disposed) return
-  if (request) return request
-  clearTimeout(timer)
-  controller = new AbortController()
-  request = (async () => {
+  if (polling) return polling
+  clearTimeout(timer); controller = new AbortController()
+  polling = (async () => {
     try {
-      const data = await api.get('/pipeline/status', { signal: controller.signal, silentErrors: true })
+      const result = await api.get('/strategies/refresh/status', { signal: controller.signal, silentErrors: true })
       if (disposed) return
-      Object.assign(status, data)
-      scrollLog()
-    } catch {
-      /* 轮询失败时静默重试，避免持续弹出错误提示。 */
-    } finally {
-      request = null
-      controller = null
-      if (!disposed) timer = setTimeout(poll, status.running ? 2000 : 10000)
-    }
+      job.value = result; statusError.value = ''; statusReady.value = true
+      if (wasRunning && !result.running) await load()
+      wasRunning = result.running
+      const scroll = !logElement.value || logElement.value.scrollHeight - logElement.value.scrollTop - logElement.value.clientHeight < 60
+      await nextTick()
+      if (scroll && logElement.value) logElement.value.scrollTop = logElement.value.scrollHeight
+    } catch (err) { if (!disposed && err.code !== 'ERR_CANCELED') { statusError.value = requestError(err, '暂时无法读取任务状态，正在重试。'); statusReady.value = false } }
+    finally { polling = null; if (!disposed) timer = setTimeout(poll, job.value.running ? 2000 : 7000) }
   })()
-  return request
+  return polling
 }
-
-async function scrollLog() {
-  await nextTick()
-  if (logEl.value) logEl.value.scrollTop = logEl.value.scrollHeight
-}
-
-async function run(stepKeys) {
-  if (submitting.value || status.running) return
-  submitting.value = true
+async function run(fetch) {
+  if (job.value.running || submitting.value || !statusReady.value) return
+  submitting.value = true; submitError.value = ''
   try {
-    await api.post('/pipeline/run', { steps: stepKeys })
+    const result = await api.post('/strategies/refresh', { fetch }, { silentErrors: true })
     if (disposed) return
-    ElMessage.success('任务已启动')
-    // 等待已有查询结束后重新获取启动后的状态。
-    if (request) await request
+    job.value = result; wasRunning = true
+    if (polling) await polling
     await poll()
-  } catch {
-    /* 409/400 已由拦截器提示 */
-  } finally {
-    submitting.value = false
-  }
+  } catch (err) { if (!disposed) submitError.value = requestError(err, '正式任务未能启动，请稍后重试。') }
+  finally { if (!disposed) submitting.value = false }
 }
-
 onMounted(poll)
-onUnmounted(() => {
-  disposed = true
-  clearTimeout(timer)
-  controller?.abort()
-})
+onBeforeUnmount(() => { disposed = true; clearTimeout(timer); controller?.abort() })
 </script>
-
 <style scoped>
-.mb16 {
-  margin-bottom: 16px;
-}
-.run-all {
-  float: right;
-}
-.step-head {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 8px;
-}
-.step-name {
-  font-weight: 600;
-}
-.step-cmd {
-  font-family: Consolas, monospace;
-  font-size: 12px;
-  color: #606266;
-  background: #f5f7fa;
-  padding: 4px 8px;
-  border-radius: 4px;
-  margin-bottom: 8px;
-}
-.step-desc {
-  font-size: 13px;
-  color: #909399;
-  min-height: 36px;
-  margin-bottom: 8px;
-}
-.status-line {
-  margin-top: 12px;
-  font-size: 13px;
-  color: #606266;
-}
-.err {
-  color: #f56c6c;
-}
-.card-sub {
-  float: right;
-  font-size: 12px;
-  color: #909399;
-  font-weight: normal;
-}
-.log {
-  background: #1e1e1e;
-  color: #d4d4d4;
-  font-size: 12px;
-  line-height: 1.6;
-  padding: 12px;
-  border-radius: 4px;
-  height: 380px;
-  overflow: auto;
-  margin: 0;
-  white-space: pre-wrap;
-  word-break: break-all;
-}
+.formal-phases { display: grid; grid-template-columns: repeat(4, 1fr); gap: 18px; list-style: none; margin: 22px 0; padding: 0; }.formal-phases li { display: flex; gap: 12px; border-top: 2px solid #e5ebf0; padding-top: 20px; }.formal-phases li.active { border-color: #46779f; }.formal-phases li > span { font-family: Georgia, serif; font-size: 24px; color: #b0bdcb; }.formal-phases li.active > span { color: #46779f; }.formal-phases b { font-size: 13px; font-weight: 500; }.formal-phases p { color: var(--muted); font-size: 11px; line-height: 1.8; margin: 9px 0 0; }.pipeline-actions { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; border-top: 1px solid var(--line); padding-top: 23px; }.pipeline-actions p { flex-basis: 100%; color: var(--muted); font-size: 11px; margin: 0; line-height: 1.9; }.job-status { background: #f7f9fb; border: 1px solid #e9edf2; border-radius: 5px; padding: 16px; margin-top: 23px; color: #77899d; font-size: 11px; line-height: 1.8; }.job-status > div { display: flex; gap: 11px; align-items: center; flex-wrap: wrap; }.job-status b { font-weight: 500; color: #4d6884; }.job-status > div > span:last-child { flex-basis: 100%; overflow-wrap: anywhere; }.job-status p { margin: 5px 0; }.published-snapshot { display: grid; grid-template-columns: 1.4fr 1fr; gap: 20px 30px; }.published-snapshot > div { display: flex; flex-direction: column; gap: 9px; }.published-snapshot span { color: var(--muted); font-size: 11px; }.published-snapshot b { color: #496078; font-size: 12px; font-weight: 500; overflow-wrap: anywhere; }.formal-log { background: #0e2133; color: #b6c7d6; border: 1px solid #163047; border-radius: 6px; padding: 20px; font-family: Consolas, 'Microsoft YaHei', monospace; font-size: 11px; line-height: 1.95; height: 325px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; margin: 0; }
+@media(max-width: 950px) { .formal-phases { grid-template-columns: 1fr 1fr; gap: 23px; } } @media(max-width: 650px) { .published-snapshot { grid-template-columns: 1fr; }.formal-log { padding: 15px; height: 280px; }.formal-phases { gap: 18px 10px; }.formal-phases li { gap: 9px; }.pipeline-actions > button { width: 100%; } }
 </style>

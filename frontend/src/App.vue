@@ -1,104 +1,58 @@
 <template>
-  <el-container class="layout">
-    <el-aside width="200px">
-      <div class="logo">A股ETF轮动系统</div>
-      <el-menu :default-active="$route.path" router background-color="#001529" text-color="#a6adb4" active-text-color="#fff">
-        <el-menu-item index="/">
-          <el-icon><Odometer /></el-icon><span>总览</span>
-        </el-menu-item>
-        <el-menu-item index="/picks">
-          <el-icon><Tickets /></el-icon><span>选ETF清单</span>
-        </el-menu-item>
-        <el-menu-item index="/decision">
-          <el-icon><Bell /></el-icon><span>每日决策</span>
-        </el-menu-item>
-        <el-menu-item index="/backtest">
-          <el-icon><TrendCharts /></el-icon><span>回测分析</span>
-        </el-menu-item>
-        <el-menu-item index="/pipeline">
-          <el-icon><VideoPlay /></el-icon><span>数据管道</span>
-        </el-menu-item>
-      </el-menu>
-    </el-aside>
-    <el-container>
-      <el-header class="header">
-        <span class="page-title">{{ $route.meta.title }}</span>
-        <el-tag v-if="pipe.running" type="warning" effect="dark">
-          任务运行中：{{ stepName(pipe.current_step) }}
-        </el-tag>
-        <el-tag v-else-if="pipe.error" type="danger">上次任务失败</el-tag>
-      </el-header>
-      <el-main>
-        <router-view />
-      </el-main>
-    </el-container>
-  </el-container>
+  <router-view v-if="$route.name === 'strategies'" />
+  <div v-else class="development-shell">
+    <aside class="development-sidebar">
+      <router-link to="/development" class="development-brand"><span>Q</span><div><b>开发后台</b><small>WEEKLY RESEARCH</small></div></router-link>
+      <nav aria-label="开发后台功能">
+        <router-link v-for="item in navigation" :key="item.path" :to="item.path"><el-icon><component :is="item.icon" /></el-icon><span>{{ item.label }}</span></router-link>
+      </nav>
+      <div class="sidebar-footer"><router-link to="/">← 返回策略工作台</router-link><p>LightGBM / 通信·黄金</p><span>正式周频 · 本地服务</span></div>
+    </aside>
+    <div class="development-workspace">
+      <header class="development-header"><div><span>开发后台</span><b>{{ $route.meta.title }}</b></div><span v-if="pipe.running" class="development-job running">双策略刷新运行中</span><span v-else-if="pipe.error" class="development-job failed">最近刷新失败</span><span v-else class="development-job ready">正式双策略</span></header>
+      <main class="development-content"><router-view /></main>
+    </div>
+  </div>
 </template>
 
 <script setup>
-import { onMounted, onUnmounted, reactive } from 'vue'
+import { onMounted, onUnmounted, reactive, watch } from 'vue'
+import { useRoute } from 'vue-router'
 import { Odometer, Tickets, TrendCharts, VideoPlay, Bell } from '@element-plus/icons-vue'
 import api from './api'
-
-const STEP_NAMES = { fetch: '抓取行情', train: '训练回测', decide: '每日决策' }
-const stepName = (s) => STEP_NAMES[s] || s || ''
-
-const pipe = reactive({ running: false, current_step: null, error: null })
-let timer = null
-
+const route = useRoute()
+const navigation = [
+  { path: '/development', label: '双策略研究总览', icon: Odometer },
+  { path: '/development/picks', label: '选ETF清单', icon: Tickets },
+  { path: '/development/decision', label: '周度调仓', icon: Bell },
+  { path: '/development/backtest', label: '回测分析', icon: TrendCharts },
+  { path: '/development/pipeline', label: '数据管道', icon: VideoPlay },
+]
+const pipe = reactive({ running: false, error: null })
+let timer
 async function poll() {
-  try {
-    const s = await api.get('/pipeline/status')
-    pipe.running = s.running
-    pipe.current_step = s.current_step
-    pipe.error = s.error
-  } catch {
-    /* 后端未启动时静默 */
-  }
+  if (route.name === 'strategies') return
+  try { const data = await api.get('/strategies/refresh/status', { silentErrors: true }); pipe.running = data.running; pipe.error = data.error }
+  catch { /* 页面自身呈现连接错误 */ }
 }
-
-onMounted(() => {
-  poll()
-  timer = setInterval(poll, 5000)
-})
+watch(() => route.name, poll)
+onMounted(() => { poll(); timer = setInterval(poll, 4000) })
 onUnmounted(() => clearInterval(timer))
 </script>
 
 <style>
-html,
-body,
-#app {
-  height: 100%;
-  margin: 0;
-}
-.layout {
-  height: 100%;
-}
-.el-aside {
-  background-color: #001529;
-}
-.logo {
-  color: #fff;
-  font-size: 16px;
-  font-weight: 600;
-  text-align: center;
-  padding: 18px 0;
-}
-.el-menu {
-  border-right: none;
-}
-.header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  border-bottom: 1px solid #e4e7ed;
-  background: #fff;
-}
-.page-title {
-  font-size: 16px;
-  font-weight: 600;
-}
-.el-main {
-  background: #f0f2f5;
-}
+html, body, #app { min-height: 100%; margin: 0; }
+.development-shell { --line: #e2e7ec; --muted: #7c8795; min-height: 100vh; color: #25364a; font-family: 'Segoe UI', 'Microsoft YaHei', sans-serif; display: flex; background: #f4f6f8; -webkit-font-smoothing: antialiased; }
+.development-shell * { box-sizing: border-box; }
+.development-sidebar { width: 220px; flex-shrink: 0; background: #13263b; color: #ccd6e0; padding: 29px 16px 24px; position: sticky; top: 0; height: 100vh; display: flex; flex-direction: column; }
+.development-brand { display: flex; gap: 12px; align-items: center; text-decoration: none; color: #fff; padding: 0 9px 31px; }
+.development-brand > span { display: grid; place-items: center; height: 34px; width: 34px; border: 1px solid #6e829950; border-radius: 7px; font: 25px Georgia, serif; }
+.development-brand b { font-size: 17px; font-weight: 600; }.development-brand small { display: block; font-size: 8px; letter-spacing: 1.9px; color: #8297ad; margin-top: 6px; }
+.development-sidebar nav { display: flex; flex-direction: column; gap: 5px; }.development-sidebar nav a { padding: 13px 12px; font-size: 13px; color: #aab9c9; text-decoration: none; display: flex; gap: 12px; align-items: center; border-radius: 5px; transition: background .15s; }.development-sidebar nav a:hover { background: #203952; color: #fff; }.development-sidebar nav a.router-link-exact-active { color: #fff; background: #2c4c70; }.development-sidebar nav .el-icon { font-size: 16px; }
+.sidebar-footer { margin-top: auto; border-top: 1px solid #31475c; padding: 23px 10px 0; font-size: 11px; color: #8fa2b5; }.sidebar-footer a { color: #cbd9e6; text-decoration: none; font-size: 12px; }.sidebar-footer p { margin: 20px 0 7px; }.sidebar-footer span { font-size: 10px; color: #6f859b; }
+.development-workspace { flex: 1; min-width: 0; }.development-header { height: 72px; padding: 0 32px; background: #fff; border-bottom: 1px solid var(--line); display: flex; align-items: center; justify-content: space-between; gap: 15px; }.development-header > div { display: flex; gap: 18px; align-items: center; }.development-header span { font-size: 11px; color: #8695a5; }.development-header b { font-size: 15px; font-weight: 500; border-left: 1px solid var(--line); padding-left: 18px; }.development-header .development-job { padding: 6px 9px; border-radius: 4px; font-size: 10px; background: #eef3f8; color: #5d7894; }.development-header .running { color: #9a7c46; background: #faf6ed; }.development-header .failed { color: #a45e51; background: #fbefec; }
+.development-content { padding: 30px 32px 35px; max-width: 1500px; margin: 0 auto; }.development-shell button, .development-shell input, .development-shell select { font-family: inherit; }.development-shell a:focus-visible, .development-shell button:focus-visible { outline: 2px solid #78a4e2; outline-offset: 3px; }
+@media(max-width: 1050px) { .development-sidebar { width: 195px; padding-inline: 12px; }.development-header { padding-inline: 24px; }.development-content { padding: 24px; } }
+@media(max-width: 720px) { .development-shell { display: block; }.development-sidebar { width: 100%; height: auto; position: static; padding: 16px; }.development-brand { padding: 0 4px 17px; }.development-sidebar nav { flex-direction: row; flex-wrap: wrap; gap: 5px; }.development-sidebar nav a { padding: 9px 10px; font-size: 11px; gap: 7px; }.sidebar-footer { margin-top: 16px; padding-top: 14px; border-top-color: #304359; }.sidebar-footer p, .sidebar-footer span { display: none; }.development-header { height: 61px; padding-inline: 16px; }.development-header > div { gap: 10px; }.development-header b { font-size: 13px; padding-left: 10px; }.development-header .development-job { font-size: 9px; }.development-content { padding: 20px 12px; } }
+@media(prefers-reduced-motion: reduce) { .development-shell * { transition: none !important; } }
 </style>
