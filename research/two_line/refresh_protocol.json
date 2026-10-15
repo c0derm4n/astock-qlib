@@ -1,0 +1,23 @@
+{
+  "version": "two-line-weekly-refresh-1",
+  "registered_on": "2026-10-13",
+  "research_only": true,
+  "hypothesis": "保留原生产候选的模型、资产预算与训练规则，仅把决策改为每周首交易日，核查最长可验证窗口中的风险与相对模型优势。",
+  "source_protocol": "research/prod_candidate/protocol.json",
+  "model_candidates": ["momentum", "ridge", "lightgbm"],
+  "reference_accounts": ["balanced"],
+  "cadence": "weekly_first_session_close_execute_next_session_open",
+  "window_start": "2018-01-01",
+  "window_end": "2026-09-11",
+  "requested_window": "近十年；当前缺早期训练及当时公告规模，最长可验证测试从2018年起",
+  "scenarios": [
+    {"name": "base", "slippage_multiplier": 1.0, "delay": 1},
+    {"name": "slippage_2", "slippage_multiplier": 2.0, "delay": 1},
+    {"name": "delay_2", "slippage_multiplier": 1.0, "delay": 2}
+  ],
+  "goal": {"cagr_min": 0.135, "worst_complete_year_min": -0.05, "max_drawdown_loss_max": 0.4},
+  "selection": "先确认时序、资格、资金和执行；分别检查最差年度与最大回撤，不擅自排序两项风险。三排序模型中按风险非劣与收益比较保留代表候选，股债金只作参考。未达目标也须明确披露，不为高收益放松风险标准。",
+  "account_basis": "原src复权全收益代理；不冒称与现金分红第二线严格同账户",
+  "history_status": "已查看历史后的开发研究；时间滚动训练不构成策略选择的独立盲测",
+  "isolation": "新增独立产物与研究指针，不修改原冻结文件、正式协议、生产指针、账户或自动化"
+}
