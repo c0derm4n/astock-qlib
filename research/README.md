@@ -1,6 +1,6 @@
 # research/ 独立研究线
 
-本目录是**离线研究区**，不在生产运行路径上。三条研究线各自独立登记、独立重放、独立产出，从不写 `output/current_run.json`，也不切换正式模型、每日入口或账户。
+本目录是**离线研究区**，不在生产运行路径上。各研究线独立登记、独立重放、独立产出，从不写 `output/current_run.json`，也不切换正式模型、每日入口或账户。
 
 ## 与主系统的关系
 
@@ -20,8 +20,9 @@
 | [ex_nasdaq/](ex_nasdaq/README.md) | 剔除纳指后30只ETF的独立历史研究 | `output/sp500_ex_nasdaq/` |
 | [goal30/](goal30/README.md) | 30只ETF目标的核验、每日观察与周度双档目标 | `output/goal30/` |
 | [prod_candidate/](prod_candidate/README.md) | `src/` 生产线候选的扩展窗口滚动回测（2018-2025） | `output/prod_candidate/` |
+| [ma_breakout/](ma_breakout/README.md) | 通信/黄金 MA5-MA10 4% 日频突破研究（2026-10-23） | `output/ma_breakout/` |
 
-三条线的演进关系：`sp500` 先确立「海外权益 + 黄金」的对标思路 → `ex_nasdaq` 剔除纳指、在30只池上重做 → `goal30` 在30只池上做逐日核验、现金分红回放与公司行动取证，后来分别开展旧双档周频研究（`weekly_goal.py`）和当前三项联合目标的周频迁移研究（`weekly_transfer.py`）。
+演进关系：`sp500` 先确立「海外权益 + 黄金」的对标思路 → `ex_nasdaq` 剔除纳指、在30只池上重做 → `goal30` 在30只池上做逐日核验、现金分红回放与公司行动取证，后来分别开展旧双档周频研究（`weekly_goal.py`）和当前三项联合目标的周频迁移研究（`weekly_transfer.py`）。`ma_breakout` 另在正式现金账本与风险约束上检验日频 4% 突破规则，结论不优于既有 MA200 基线。
 
 `prod_candidate/` 不属于上述三条线：它把 `src/` 的生产线候选（`core_satellite` + lightgbm 主模型）放到比生产协议更长的窗口（2018 起，见该目录说明为什么不能更早）重跑，只用于与指数、社保基金做同窗口对比。模型按时间滚动训练不等于策略选择有独立盲测。
 
@@ -97,9 +98,22 @@ python -m research.goal30.weekly_goal --run <输出目录>          # 运行已�
 
 **状态**：现金分红回放（2016-09-12—2026-09-11）年化 15.97%、人民币 SPY 15.34%；年度最大回撤均值 13.23% vs 13.55%，日均回撤 7.48% vs 3.42%——**两种平均回撤口径给出不同结论，验收定义仍待确认**。仍缺历史目录、公司行动来源完整审计及 126 日真实前瞻，**合格前瞻天数为 0**。[现金回放验收](../docs/SP500_CASH_REPLAY_ACCEPTANCE.md)、[发行人正文补充](../docs/SP500_ISSUER_EVIDENCE_ACCEPTANCE.md)、[上市日期验收](../docs/SP500_LISTING_DATES_ACCEPTANCE.md)
 
+## ma_breakout/ — 通信/黄金 MA5-MA10 4% 日频突破研究
+
+**定位**：2026-10-23 登记的独立日频实验，检验“1日或2日涨幅 ≥4% 且站上 MA5 入场、跌破 MA10 退出”的通信/黄金规则；复用正式 `bounded_targets` 的波动、权重与换手约束，以及 `formal_cash` 现金账本，不改生产。
+
+**结论**：v3 协议完成16/16场景。主方案 2016-09-12—2026-10-19 的 CAGR 2.34%、最大每日净值回撤 16.54%、最差完整年 2018 年 -4.61%；CAGR 远低于 13.50%，联合目标未通过，不是生产候选。平均仓位仅 9.19%，收益高度依赖 2025 年。v1/v2 的统计与入场语义勘误保留，不覆盖旧运行。
+
+```powershell
+python -m research.ma_breakout.run --register
+python -m research.ma_breakout.run --run <run目录>
+```
+
+**状态**：研究完成，否定结论；23项本地测试通过。详见[报告](../docs/MA_BREAKOUT_RESEARCH_20261023.md)。
+
 ## 测试覆盖
 
-主测试套件中有 7 个文件覆盖这三条线：`tests/test_sp500_research.py`、`tests/test_ex_nasdaq.py`、`tests/test_goal30.py`、`tests/test_goal30_actions.py`、`tests/test_goal30_cash.py`、`tests/test_goal30_forward.py`、`tests/test_goal30_weekly.py`。另有 `goal30/` 内部的 13 个本地测试。
+主测试套件中有 7 个文件覆盖前三条线：`tests/test_sp500_research.py`、`tests/test_ex_nasdaq.py`、`tests/test_goal30.py`、`tests/test_goal30_actions.py`、`tests/test_goal30_cash.py`、`tests/test_goal30_forward.py`、`tests/test_goal30_weekly.py`。另有 `goal30/` 内部的 13 个本地测试，以及 `ma_breakout/` 内部的 23 个本地测试。
 
 ```powershell
 python -m unittest discover -s tests -v
@@ -107,7 +121,7 @@ python -m unittest discover -s tests -v
 
 ## 注意
 
-- 三条线的**实盘投资准入均未通过**。历史门槛通过不等于可持续超额收益，研究标签不能当作实盘批准。
+- 各研究线的**实盘投资准入均未通过**。历史门槛通过不等于可持续超额收益，研究标签不能当作实盘批准。
 - 重放依赖本机保留的行情、NAV、元数据与基准快照；冻结文件（`selected_strategy.json`、`*_protocol.json`、快照）一旦改变，旧重放会被拒绝。
 - `goal30` 的每日命令没有历史日期参数：过去日期的测试只能写入独立验证目录，不计作前瞻。
 - 未提供账户时 `rebalance_needed=null`——不知道用户仓位，不能认定已空仓或需要买入。

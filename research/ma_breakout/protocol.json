@@ -1,0 +1,132 @@
+{
+  "version": "ma-breakout-20261023-3",
+  "status": "post_semantic_correction_batch_after_viewing_v1_and_v2_full_results",
+  "registration_timing": {
+    "scope": "v3最终16场景批量回放开始前登记",
+    "prior_observation": "主代理此前先完成一次主新内存诊断，随后v1和v2各完成完整16场景并向用户展示结果。v3是在已看过这些结果后修正清仓后entry语义的复核，不是策略首次查看结果前的预注册，也不是独立样本外验证。",
+    "parameter_discipline": "4%阈值、MA5/MA10、60/35/5权重、15%波动预算、成本、T+1/T+2压力、滑点压力和六个敏感性邻域均沿用对话先定参数；没有根据v1/v2结果调整任何参数或挑选赢家。",
+    "prior_full_batches": [
+      "output/ma_breakout/runs/20261023-110301-95f9e8f6",
+      "output/ma_breakout/runs/20261023-111646-2e433f78"
+    ],
+    "superseded_run": "v1因开仓事件统计漏计拆分后的持仓转换而由v2替代；v2因清仓后错误要求entry_event状态转换而由v3替代延迟压力及最终复核。",
+    "errata": "output/ma_breakout/errata/20261023-opening-event-count.json; output/ma_breakout/errata/20261023-post-clear-entry.json"
+  },
+  "research_question": "比较通信/黄金线中 MA5 入场、MA10 退出、1日或2日复利涨4%的日频随势策略与既有 MA200 日频/周频基线的收益、年度亏损和最大回撤，并以同现金账户、同成本和同资格规则限制对照差异。",
+  "start": "2016-09-12",
+  "end": "2026-10-19",
+  "initial_capital": 1000000.0,
+  "source": {
+    "production_pointer": "output/strategies/current.json",
+    "formal_registration": "output/strategies/runs/20261020-175907-4e28a826/registration.json",
+    "database": "data/formal/market.duckdb",
+    "corporate_actions": "strategy_corporate_actions.json",
+    "registry": "strategy_registry.json",
+    "baseline_strategy_id": "trend200_vol15",
+    "baseline_report": "output/strategies/runs/20261020-175907-4e28a826/trend200_vol15_report.csv",
+    "baseline_trades": "output/strategies/runs/20261020-175907-4e28a826/trend200_vol15_trades.csv"
+  },
+  "execution": {
+    "signal_time": "daily_close",
+    "executable_substitute": "signal_close_then_next_session_open",
+    "base_delay_sessions": 1,
+    "delay_stress_sessions": 2,
+    "tail_close_execution_tested": false,
+    "limitation": "用户原先的尾盘设想尚无分钟级成交证据；本实验仅验证收盘确认后的下一交易日开盘替代口径，不能表述为尾盘成交结果。"
+  },
+  "technical_signal": {
+    "price": "each_etf_adjusted_close",
+    "r1": "P_t / P_t-1 - 1",
+    "r2": "P_t / P_t-2 - 1",
+    "entry": "(r1 >= threshold OR r2 >= threshold) AND P_t >= MA5",
+    "exit": "P_t < MA10",
+    "threshold_base": 0.04,
+    "ma_entry_base": 5,
+    "ma_exit_base": 10,
+    "exit_priority": true,
+    "history": "所有参与计算的价格必须有限且为正；短均线、长均线及两日收益所需窗口必须完整。",
+    "state": "实验起点技术持仓状态强制为False；空仓仅在当日新入场条件满足时建仓；持仓在没有退出条件时延续，不以跌破MA5单独退出。"
+  },
+  "allocation": {
+    "communication_weight": 0.6,
+    "gold_weight": 0.35,
+    "minimum_cash_weight": 0.05,
+    "communication": "SH515880",
+    "gold": "SH518880",
+    "fallback": "SH510300",
+    "fallback_rule": "仅当通信市场资格失效时启用；fallback有效资格定义为 CSIeligible AND NOT COMMeligible，只在窗口内累积自身信号状态；恢复通信时fallback状态退出且不继承旧entry。",
+    "technical_stop_fallback": false,
+    "pyramiding": false,
+    "liquidation_intent": "止损或资格失效从信号日锁定清仓意图；首次卖单失败或部分成交后持续target=0，直到实际持仓为零。期间即使价格反弹产生entry也不重新买入；清零后的同一收盘只要当日entry_condition、资格满足且无exit即可重新入场，不额外要求技术状态false→true。",
+    "in_flight_order_rule": "同一标的至多一组在途委托。普通非零目标变化不修改原数量、ADV、参考价和执行日，也不重复下单；新收盘明确target=0时撤销尚未执行买单，在途清仓卖单不撤销；期间拆分或除息继续撤销相关委托。",
+    "risk": "主方案直接复用formal_rules.bounded_targets；15%波动预算、权重/组别/权益/总仓位限制、3个百分点漂移带、30%共享日换手预算均在每日收盘应用。止损和资格退出为零目标，绕过漂移带但仍受部分成交、停牌、价格限制、ADV和现金约束。",
+    "no_vol": "辅助方案只把波动比较设为不绑定；所有其他正式权重、组别、权益、总仓位、漂移带和换手约束不变。"
+  },
+  "cases": {
+    "primary": [
+      "new_ma5_ma10_4pct_vol15__base",
+      "new_ma5_ma10_4pct_vol15__slippage_2",
+      "new_ma5_ma10_4pct_vol15__delay_2"
+    ],
+    "auxiliary": [
+      "new_ma5_ma10_4pct_no_vol__base"
+    ],
+    "formal_weekly_baseline": [
+      "formal_weekly_ma200_vol15__base",
+      "formal_weekly_ma200_vol15__slippage_2",
+      "formal_weekly_ma200_vol15__delay_2"
+    ],
+    "daily_baseline": [
+      "daily_ma200_vol15__base",
+      "daily_ma200_vol15__slippage_2",
+      "daily_ma200_vol15__delay_2"
+    ],
+    "sensitivity_base_only": [
+      "new_threshold_3pct__base",
+      "new_threshold_5pct__base",
+      "new_exit_ma8__base",
+      "new_exit_ma12__base",
+      "new_entry_ma4__base",
+      "new_entry_ma6__base"
+    ]
+  },
+  "scenarios": {
+    "base": {"slippage_multiplier": 1.0, "execution_delay_sessions": 1},
+    "slippage_2": {"slippage_multiplier": 2.0, "execution_delay_sessions": 1},
+    "delay_2": {"slippage_multiplier": 1.0, "execution_delay_sessions": 2}
+  },
+  "sensitivity": {
+    "rule": "只比较预定邻域并保留全部结果，不按结果调参或搜索最优。",
+    "threshold_3pct": {"threshold": 0.03},
+    "threshold_5pct": {"threshold": 0.05},
+    "exit_ma8": {"exit_window": 8},
+    "exit_ma12": {"exit_window": 12},
+    "entry_ma4": {"entry_window": 4},
+    "entry_ma6": {"entry_window": 6}
+  },
+  "metrics": {
+    "full_curve": ["final_nav", "cagr", "max_daily_nav_drawdown", "annual_table", "worst_complete_year", "trade_count", "opening_event_count", "stop_trigger_count", "eligibility_exit_count", "average_position_weight", "average_cash_weight", "turnover_cost"],
+    "complete_years": [2017, 2018, 2019, 2020, 2021, 2022, 2023, 2024, 2025],
+    "partial_years": [2016, 2026],
+    "subwindow": "2017-2024",
+    "period_diagnostics": ["2017-2021", "2022-2025"],
+    "return_dependency_2025": "只从2017-2025完整年度收益因子中剔除2025并复合其余8年；不得回落为连续回测、不得用断裂序列计算最大回撤。",
+    "communication_listing_diagnostic": "2020-2025六个完整自然年共同收益。"
+  },
+  "validation": {
+    "expected_rows": 2448,
+    "expected_trades": 325,
+    "expected_final_nav": 2048206.866888783,
+    "weekly_baseline": "新引擎以同一候选、政策、动作和weekly_sessions运行T+1，报告account须与当前正式trend200_vol15_report.csv逐日对齐；另核对2448行、325笔成交和期末2048206.866888783在浮点容差内。",
+    "ledger": "每个case调用src.formal_cash.audit_cash_ledger独立复核。",
+    "pre_and_post_hashes": "运行前后数据库、正式指针、当前registration、registry、公司行动、生产现金依赖和研究实现哈希必须不变。",
+    "immutability": "每个run目录mkdir(exist_ok=False)，结果只新增；所有登记场景包括失败结果均保留。",
+    "investment_admission": false
+  },
+  "outputs": {
+    "root": "output/ma_breakout",
+    "run_directory": "output/ma_breakout/runs/<timestamp-uuid>",
+    "required": ["registration.json", "results.json", "completion.json", "net_value.png", "drawdown.png", "report.md", "per-case CSV/JSON"],
+    "investment_admission": false
+  }
+}
