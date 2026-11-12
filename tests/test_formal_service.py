@@ -19,6 +19,10 @@ from src.market import load_market
 from src.formal_orders import plan_orders
 from src.portfolio import plan_orders as legacy_orders
 
+def retired_registry():
+    # 仅冻结引擎回归使用旧定义；不恢复后台加载或活动登记。
+    return json.loads((Path(__file__).parent / 'fixtures/retired_strategy_registry_v3_2.json').read_text(encoding='utf-8'))
+
 
 class FormalRulesTests(unittest.TestCase):
     def test_weekly_holiday_first_session(self):
@@ -85,7 +89,7 @@ class FormalRulesTests(unittest.TestCase):
                   'close': frame(1 / factor), 'open': frame(1 / factor), 'volume': frame(1e8)}
         market = SimpleNamespace(calendar=dates, wide=lambda key: fields[key],
             eligibility=pd.DataFrame({'date': dates, 'symbol': 'SH510300', 'eligible': True, 'avg_amount': 1e8}))
-        policy = {**registry()['strategies'][0]['policy'], 'portfolio_style': 'rotation',
+        policy = {**retired_registry()['strategies'][0]['policy'], 'portfolio_style': 'rotation',
                   'topk': 1, 'initial_capital': 1000.}
         scores = pd.Series([1., 1.], index=pd.MultiIndex.from_tuples(
             [(pd.Timestamp('2016-09-12'), 'SH510300'), (pd.Timestamp('2016-09-19'), 'SH510300')],
@@ -104,7 +108,7 @@ class FrozenParityTests(unittest.TestCase):
         if not source.exists():
             raise unittest.SkipTest('本地历史基线不可用')
         cls.market = load_market(source / 'market_2013_2026.duckdb')
-        cls.spec = registry()
+        cls.spec = retired_registry()
         cls.source = source
 
     def test_adjusted_account_exact_historical_parity(self):
@@ -182,16 +186,32 @@ class FormalAPITests(unittest.TestCase):
         result = self.request('GET', '/api/strategies')
         self.assertEqual(result.status_code, 200)
         snap = result.json()
-        self.assertEqual(len(snap['strategies']), 2)
+        self.assertEqual({s['id'] for s in snap['strategies']}, {d['id'] for d in registry()['strategies']})
         for s in snap['strategies']:
             self.assertEqual(s['series']['dates'][0], '2016-09-12')
             self.assertEqual(s['series']['capital'][0], 1e6)
             self.assertEqual(s['run_id'], snap['run_id'])
             r = self.request('POST', f'/api/strategies/{s["id"]}/preview', json={
                 'run_id': snap['run_id'], 'cash': 1e6, 'holdings': []}, headers={'X-Local-Request': '1'})
-            self.assertEqual(r.status_code, 200, r.text)
-            self.assertLessEqual(sum(x['estimated_amount'] for x in r.json()['rows'] if x['side'] == 'buy'), 1e6)
-            self.assertTrue(all(x['quantity'] % 100 == 0 for x in r.json()['rows'] if x['side'] == 'buy'))
+            if s.get('kind') == 'valuation_bands':
+                self.assertEqual(r.status_code, 400, r.text)
+                self.assertIn('批次', r.json()['detail'])
+                self.assertEqual(s['validation']['ledger']['status'], 'passed')
+            elif s.get('kind') == 'index_benchmark':
+                self.assertEqual(r.status_code, 400, r.text)
+                self.assertIn('指数', r.json()['detail'])
+                self.assertEqual(s['advice']['rows'], [])
+            elif s.get('kind') == 'dividend_band':
+                self.assertEqual(r.status_code, 400, r.text)
+                self.assertIn('等值', r.json()['detail'])
+                self.assertFalse(s['capabilities']['executable_orders'])
+                self.assertEqual(s['validation']['ledger']['status'], 'passed')
+                self.assertTrue(s['advice']['paper_only'])
+                self.assertTrue(all(row['quantity'] is None for row in s['advice']['rows']))
+            else:
+                self.assertEqual(r.status_code, 200, r.text)
+                self.assertLessEqual(sum(x['estimated_amount'] for x in r.json()['rows'] if x['side'] == 'buy'), 1e6)
+                self.assertTrue(all(x['quantity'] % 100 == 0 for x in r.json()['rows'] if x['side'] == 'buy'))
             bad = self.request('POST', f'/api/strategies/{s["id"]}/preview', json={
                 'run_id': snap['run_id'], 'cash': 1e6, 'holdings': [{'symbol': 'SH513100', 'quantity': 100}]},
                 headers={'X-Local-Request': '1'})

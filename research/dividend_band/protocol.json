@@ -1,0 +1,68 @@
+{
+  "version": "dividend-band-20261111-v1",
+  "start": "2016-09-12",
+  "end": "2026-11-04",
+  "warmup_start": "2014-01-02",
+  "initial_capital": 100000.0,
+  "hypothesis": "红利低波动全收益指数的滚动隐含股息率及其与10年期国债收益率之差(ERP)具有均值回归的估值带特征；按估值档位分批加减仓、并把闲置资金放入国债ETF，可以在不抛弃红利股息复利的前提下同时改善年化、最差完整年与最大回撤。",
+  "registration": "全部候选、档位阈值、压力情景在这次收益计算前登记；但研究者在此之前已查看过同一区间红利低波的公开历史(含2018回撤、2019-2021上行、2024-2026行情)，因此这不是未见历史的盲测，也不构成预注册主方案。",
+  "data_definition": {
+    "red": "中证红利低波动全收益指数H20269官方日收盘；2014-2016预热来自中证官方接口按年原始响应；股息已内含，持有方按日历天扣0.60%年化复制费用情景。",
+    "price": "中证红利低波动指数H30269官方日收盘(价格指数，不含股息)；用于与全收益指数反推隐含派息。",
+    "bond": "十年国债ETF 511260原始收盘×当日复权因子，代表国债总回报；2017-08-24上市前不可交易、持仓为零，资金保留为现金。",
+    "yield10": "中国10年期国债到期收益率(%)，东方财富数据中心RPTA_WEB_TREASURYYIELD原始分页响应留档；按XSHG交易日向前填充。",
+    "implied_dividend": "D_t = TR_t/TR_{t-1}*PR_{t-1} - PR_t（指数点）；由全收益与价格指数日收益差反推当日隐含派息。",
+    "dividend_yield": "DY_t = sum(D_{t-251..t}) / PR_t * 100，即最近252个交易日隐含派息总额除以当日价格，单位%；只使用t及以前数据。",
+    "erp": "ERP_t = DY_t - yield10_t，单位百分点。",
+    "percentile": "DY或ERP在滚动756个交易日窗口内的百分位（min_periods=252，含当日），仅使用窗口内历史。",
+    "limitations": "隐含股息率是事后重建的近似值，不等于中证官方股息率口径（官网免费接口只给滚动20个交易日）；它同时包含价格漂移的影响，只能当作相对估值尺子使用。"
+  },
+  "signal_rules": {
+    "band_lookup": "给定档位表[(阈值,目标红利权重)...]，取第一个满足 指标>=阈值 的档位权重；都不满足取最后一档。",
+    "guard": "风险状态= (price < MA250*0.96 且 MA250 < MA250_{t-20}) 或 vol60 > 20%；风险状态下红利目标权重取 min(档位权重, 30%)，并把波段状态清零。",
+    "idle_asset": "红利目标之外的 target=95%-红利目标 配置国债；国债不可交易期该部分为现金。",
+    "cap": "红利+国债目标合计不超过95%，不加杠杆，不做空。"
+  },
+  "band_tables": {
+    "abs_dividend": [[5.0, 0.95], [4.8, 0.85], [4.2, 0.70], [4.0, 0.60], [3.8, 0.50], [3.6, 0.35], [-999.0, 0.20]],
+    "abs_dividend_wide": [[4.8, 0.95], [4.0, 0.70], [-999.0, 0.40]],
+    "pct_dividend": [[80.0, 0.95], [60.0, 0.80], [40.0, 0.65], [20.0, 0.50], [-999.0, 0.30]],
+    "abs_erp": [[3.0, 0.95], [2.8, 0.85], [2.2, 0.70], [1.8, 0.55], [1.4, 0.40], [-999.0, 0.25]],
+    "pct_erp": [[80.0, 0.95], [60.0, 0.80], [40.0, 0.65], [20.0, 0.50], [-999.0, 0.30]]
+  },
+  "candidates": [
+    {"id": "abs_band", "indicator": "dividend_yield", "table": "abs_dividend", "guard": false},
+    {"id": "abs_band_wide", "indicator": "dividend_yield", "table": "abs_dividend_wide", "guard": false},
+    {"id": "pct_band", "indicator": "dividend_pct", "table": "pct_dividend", "guard": false},
+    {"id": "erp_band", "indicator": "erp", "table": "abs_erp", "guard": false},
+    {"id": "erp_pct_band", "indicator": "erp_pct", "table": "pct_erp", "guard": false},
+    {"id": "abs_band_guard", "indicator": "dividend_yield", "table": "abs_dividend", "guard": true},
+    {"id": "pct_band_guard", "indicator": "dividend_pct", "table": "pct_dividend", "guard": true},
+    {"id": "erp_band_guard", "indicator": "erp", "table": "abs_erp", "guard": true},
+    {"id": "abs_band_cash", "indicator": "dividend_yield", "table": "abs_dividend", "guard": false, "idle": "cash"},
+    {"id": "hold95", "indicator": "hold", "table": null, "guard": false},
+    {"id": "bond95", "indicator": "bond", "table": null, "guard": false},
+    {"id": "static60", "indicator": "static", "table": null, "guard": false, "red": 0.6},
+    {"id": "static70", "indicator": "static", "table": null, "guard": false, "red": 0.7},
+    {"id": "static75", "indicator": "static", "table": null, "guard": false, "red": 0.75}
+  ],
+  "added_controls_note": "static60/70/75为同成本静态配置对照；static70与static75是在已看过本批回放后补充的‘同平均暴露’解释性对照(平均红利暴露约72%)，只用于判断择时是否带来额外增益，不参与候选选择、不改变任何档位阈值。",
+  "anchors": ["abs_band", "pct_band", "erp_band", "abs_band_guard"],
+  "execution": {
+    "signal": "每周首个中国交易日收盘评估，休市顺延；只读取截至当日的数据。",
+    "base_fill": "下一交易日收盘执行，信号日不赚取新仓收益；不是次日开盘验证。",
+    "rebalance_band": "非零目标与现有权重差小于5个百分点时保留原权重；目标为零不受漂移带约束。",
+    "account": "分数等值份额、自融资现金与日度市值；不是100份整手券商成交账本。",
+    "fees": "每个买卖方向收取max(5元, 成交额*0.10%)；红利指数持有另按日历天扣0.60%年化复制费用情景；国债价格已含基金费用，不重复扣；现金零息。",
+    "bond_gap": "511260于2018-08-17缺市场报价，当日只用基金净值估值、不允许成交，调仓顺延到下一交易日。"
+  },
+  "validation": {
+    "direct_dominance": "相同全期内CAGR>红利全收益、每日净值最大回撤更小、最差完整年更好，三项同时满足。",
+    "personal_goals": "CAGR>=13.5%、最差完整自然年>=-5%、最大回撤<=40%，风险不为年化让步。",
+    "stress": ["单边成本0.20%", "单边成本0.30%", "延迟到T+2收盘", "改每月首个交易日评估"],
+    "time_splits": ["2017-2021", "2022-2025", "2017-2024"],
+    "etf_subset": "2019-01-18起红利改用512890真实ETF价格作红利持有代理，仅作上市后对照，不拼接上市前收益。",
+    "all_results_retained": true,
+    "no_production_change": true
+  }
+}

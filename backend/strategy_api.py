@@ -1,10 +1,10 @@
-"""仅本地、无券商委托的正式双策略 API。"""
+"""仅本地、无券商委托的正式策略 API。"""
 from urllib.parse import urlparse
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field, model_validator
 from backend import strategy_service
 
-router = APIRouter(prefix='/api/strategies', tags=['正式双策略'])
+router = APIRouter(prefix='/api/strategies', tags=['正式策略'])
 
 
 def local_mutation(request):

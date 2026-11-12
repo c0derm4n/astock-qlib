@@ -1,0 +1,176 @@
+{
+  "protocol_id": "formal-valuation-equal-20261109-v1",
+  "implementation_version": "formal-equal-weight-1",
+  "created_at": "2026-11-09",
+  "timezone": "Asia/Shanghai",
+  "plan_document": "research/valuation_bands/README.md",
+  "investment_admission": false,
+  "screenshot_reviewed": true,
+  "notes": [
+    "用户2026-11-09明确允许另建等权版本；原整体法协议和阻塞结论保留。",
+    "PE使用equalWeightedPeTtm；PB使用equalWeightedPbTtm；PB财务MRQ口径未验证，不改名PB_MRQ。",
+    "仅运行两个主策略及4个执行压力；不据结果调阈值、仓位、冷却或日期。",
+    "今日下载历史为historical_reconstructed，不是原始PIT；保守下一交易日19:00可用模型不消除重述偏差。"
+  ],
+  "initial_capital": 1000000.0,
+  "research_start": "2016-09-12",
+  "requested_end": "2026-11-06",
+  "warmup_years": [
+    2011,
+    2012,
+    2013,
+    2014,
+    2015
+  ],
+  "calendar": {
+    "exchange": "XSHG",
+    "signal_week_anchor": "W-SUN",
+    "signal_clock": "19:00",
+    "execution_offset_default": 1
+  },
+  "calibration": {
+    "lookback_years": 5,
+    "price_coverage_min": 1.0,
+    "valuation_coverage_min": 0.95,
+    "min_valuation_observations": 1000,
+    "quantile_method": "linear_type7",
+    "band_upper_mult": 1.1,
+    "band_mid_mult": 1.0,
+    "band_low_mult": 0.9
+  },
+  "execution": {
+    "commission_rate": 0.0003,
+    "min_commission": 0.2,
+    "slippage": 0.0005,
+    "impact_coef": 0.002,
+    "max_participation": 0.02,
+    "lot_size": 100,
+    "buy_budget_nav_share": 0.3,
+    "min_cash_share": 0.05,
+    "equity_cap_tolerance": 0.03,
+    "max_price_carry_sessions": 5,
+    "max_valuation_lag_sessions": 1,
+    "cash_interest": 0.0,
+    "stamp_duty": 0.0,
+    "t_plus": 1
+  },
+  "strategies": {
+    "A": {
+      "case_id": "A_pe_weekly",
+      "label": "沪深300 PE（ETF.run等权）",
+      "index_id": "000300",
+      "index_price_type": "price_index_close",
+      "metric": "PE_TTM_EQUAL",
+      "etf": "SH510300",
+      "w_cap": 0.6,
+      "exit_q": 0.85,
+      "band_upper_mult": 1.1,
+      "cooldown_sessions": 20,
+      "delay_sessions": 1
+    },
+    "B": {
+      "case_id": "B_pb_weekly",
+      "label": "创业板 PB（ETF.run等权，MRQ未验证）",
+      "index_id": "399006",
+      "index_price_type": "price_index_close",
+      "metric": "PB_ETFRUN_EQUAL",
+      "etf": "SZ159915",
+      "w_cap": 0.4,
+      "exit_q": 0.75,
+      "band_upper_mult": 1.1,
+      "cooldown_sessions": 20,
+      "delay_sessions": 1
+    }
+  },
+  "auxiliary_modules": {
+    "A_pe_fixed14_34": {
+      "strategy": "A",
+      "fixed_exit_level": 14.34,
+      "data_requirements": [
+        "index_price:000300",
+        "index_valuation:000300:PE_TTM",
+        "etf:SH510300"
+      ]
+    },
+    "A_pe_ratio_gate": {
+      "strategy": "A",
+      "gate": "ratio",
+      "ratio_base_date": "2015-01-05",
+      "ratio_numerator": "H00300",
+      "ratio_denominator": "885007.WI",
+      "ratio_threshold": 1.0,
+      "data_requirements": [
+        "index_price:000300",
+        "index_valuation:000300:PE_TTM",
+        "etf:SH510300",
+        "ratio_signals"
+      ]
+    },
+    "B_pb_dividend": {
+      "strategy": "B",
+      "dividend_index": "H30269",
+      "dividend_symbol": "SH512890",
+      "dividend_yield_threshold": 0.05,
+      "dividend_target_weight": 0.3,
+      "data_requirements": [
+        "index_price:399006",
+        "index_valuation:399006:PB_MRQ",
+        "etf:SZ159915",
+        "dividend_yield:H30269",
+        "etf:SH512890"
+      ]
+    }
+  },
+  "cases": [
+    {
+      "id": "A_pe_weekly",
+      "group": "primary",
+      "strategy": "A",
+      "kind": "primary",
+      "overrides": {}
+    },
+    {
+      "id": "B_pb_weekly",
+      "group": "primary",
+      "strategy": "B",
+      "kind": "primary",
+      "overrides": {}
+    }
+  ],
+  "benchmarks": [],
+  "status_vocabulary": [
+    "registered",
+    "implementation_passed",
+    "historical_run_complete",
+    "data_or_scope_blocked",
+    "historical_goals_passed"
+  ],
+  "data_requirements": {
+    "index_price": [
+      "000300",
+      "399006"
+    ],
+    "index_valuation": [
+      [
+        "000300",
+        "PE_TTM_EQUAL"
+      ],
+      [
+        "399006",
+        "PB_ETFRUN_EQUAL"
+      ]
+    ],
+    "etf": [
+      "SH510300",
+      "SZ159915",
+      "SH512890"
+    ],
+    "optional": [
+      "ratio_signals",
+      "dividend_yield:H30269"
+    ]
+  },
+  "parent_protocol_sha256": "2fc56ee5e9cd84d44496f5f7fc08cc1de3e6b4d46096380a3ca8caa2ba2c3b23",
+  "valuation_version": "etfrun_equal_weight_user_authorized_20261109",
+  "formal_authorization": "用户2026-11-09明确要求两条等权版策略升级正式服务并展示四策略；不等于投资准入通过"
+}

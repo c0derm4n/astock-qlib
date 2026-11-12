@@ -7,7 +7,7 @@
       </div>
     </div>
     <div ref="plot" class="strategy-plot" role="img" :aria-label="`${strategy.name} ${title}，区间 ${strategy.data_start} 至 ${strategy.data_end}`"></div>
-    <p class="chart-footnote">{{ kind.startsWith('annual') ? '首尾不足全年单独标记；年度回撤包含上年末资金作为起始峰值。' : '每日收盘估值，扣除佣金、滑点与冲击成本；仅在周首信号触发后于下一交易日开盘调仓。' }}</p>
+    <p class="chart-footnote">{{ footnote }}</p>
   </div>
 </template>
 
@@ -17,10 +17,18 @@ import * as echarts from 'echarts/core'
 import { LineChart, BarChart } from 'echarts/charts'
 import { GridComponent, TooltipComponent, DataZoomComponent, MarkLineComponent } from 'echarts/components'
 import { CanvasRenderer } from 'echarts/renderers'
+import { isDividendBandStrategy, isIndexStrategy } from '../strategyPresentation'
 echarts.use([LineChart, BarChart, GridComponent, TooltipComponent, DataZoomComponent, MarkLineComponent, CanvasRenderer])
 const props = defineProps({ strategy: { type: Object, required: true } })
 const tabs = [{ id: 'capital', label: '资金曲线' }, { id: 'annualReturn', label: '年度收益' }, { id: 'annualDrawdown', label: '年度回撤' }, { id: 'drawdown', label: '回撤曲线' }]
 const kind = ref('capital'), plot = ref(null)
+const footnote = computed(() => kind.value.startsWith('annual')
+  ? '首尾不足全年单独标记；年度回撤包含上年末资金作为起始峰值。'
+  : isIndexStrategy(props.strategy)
+    ? '全收益指数每日收盘参考，包含股息再投，未扣基金费与复制成本；不是ETF成交账户。'
+    : isDividendBandStrategy(props.strategy)
+      ? '资金曲线为红利、国债指数代理与分数等值份额的历史回放；仅展示模型金额和权重，不是ETF整数份额成交账户。'
+    : '每日收盘估值，扣除佣金、滑点与冲击成本；仅在周首信号触发后于下一交易日开盘调仓。')
 const title = computed(() => tabs.find(t => t.id === kind.value).label)
 const subtitle = computed(() => kind.value === 'capital' ? '100万元起始 · 单位：万元' : kind.value === 'annualReturn' ? '各自然年的账户收益 · 单位：%' : '资金相对历史峰值的损失 · 单位：%')
 let chart, observer

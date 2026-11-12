@@ -30,7 +30,7 @@ if (-not $SkipBuild -or -not (Test-Path -LiteralPath 'frontend\dist\index.html')
 }
 $needsSnapshot = -not (Test-Path -LiteralPath 'output\strategies\current.json')
 if (-not $needsSnapshot) {
-    $freshness = & $pythonExe -c "import json,pandas as pd; from src.formal_service import OUT,completed_day; print(int(pd.Timestamp(json.loads((OUT/'current.json').read_text(encoding='utf-8'))['data_end']) < completed_day()))"
+    $freshness = & $pythonExe -c "from src.formal_service import snapshot_needs_refresh; print(int(snapshot_needs_refresh()))"
     $needsSnapshot = ($LASTEXITCODE -ne 0) -or ($freshness -ne '0')
 }
 if ($Refresh -or $needsSnapshot) {
@@ -38,7 +38,7 @@ if ($Refresh -or $needsSnapshot) {
     if ($LASTEXITCODE -ne 0) { throw '正式策略构建失败；详情见终端。' }
 }
 $localUrl = "http://127.0.0.1:$Port"
-Write-Host "ETF双策略服务：$localUrl"
+Write-Host "ETF三策略服务：$localUrl"
 Write-Host '启动后可点击页面的“更新行情与建议”。按 Ctrl+C 停止服务。'
 if (-not $NoBrowser) {
     Start-Process $localUrl

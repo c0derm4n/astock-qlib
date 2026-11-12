@@ -1,0 +1,149 @@
+{
+  "protocol_id": "valuation-bands-20261109-v1",
+  "implementation_version": "1.0.0",
+  "created_at": "2026-11-09",
+  "timezone": "Asia/Shanghai",
+  "plan_document": "research/valuation_bands/README.md",
+  "investment_admission": false,
+  "screenshot_reviewed": true,
+  "notes": [
+    "参数来源见 README 第2节: 截图原述与本研究新增约定严格区分。",
+    "本协议不宣称复现作者收益, 不把截图自述的30.87%/87.50%当作已核实绩效。",
+    "全部25个case在首次真实回测前登记, 数据/范围阻塞的case保留状态不删除。"
+  ],
+  "initial_capital": 1000000.0,
+  "research_start": "2016-09-12",
+  "requested_end": "2026-11-06",
+  "warmup_years": [2011, 2012, 2013, 2014, 2015],
+  "calendar": {
+    "exchange": "XSHG",
+    "signal_week_anchor": "W-SUN",
+    "signal_clock": "19:00",
+    "execution_offset_default": 1
+  },
+  "calibration": {
+    "lookback_years": 5,
+    "price_coverage_min": 1.0,
+    "valuation_coverage_min": 0.95,
+    "min_valuation_observations": 1000,
+    "quantile_method": "linear_type7",
+    "band_upper_mult": 1.1,
+    "band_mid_mult": 1.0,
+    "band_low_mult": 0.9
+  },
+  "execution": {
+    "commission_rate": 0.0003,
+    "min_commission": 0.2,
+    "slippage": 0.0005,
+    "impact_coef": 0.002,
+    "max_participation": 0.02,
+    "lot_size": 100,
+    "buy_budget_nav_share": 0.3,
+    "min_cash_share": 0.05,
+    "equity_cap_tolerance": 0.03,
+    "max_price_carry_sessions": 5,
+    "max_valuation_lag_sessions": 1,
+    "cash_interest": 0.0,
+    "stamp_duty": 0.0,
+    "t_plus": 1
+  },
+  "strategies": {
+    "A": {
+      "case_id": "A_pe_weekly",
+      "label": "沪深300 PE 分批",
+      "index_id": "000300",
+      "index_price_type": "price_index_close",
+      "metric": "PE_TTM",
+      "etf": "SH510300",
+      "w_cap": 0.6,
+      "exit_q": 0.85,
+      "band_upper_mult": 1.1,
+      "cooldown_sessions": 20,
+      "delay_sessions": 1
+    },
+    "B": {
+      "case_id": "B_pb_weekly",
+      "label": "创业板指 PB 分批",
+      "index_id": "399006",
+      "index_price_type": "price_index_close",
+      "metric": "PB_MRQ",
+      "etf": "SZ159915",
+      "w_cap": 0.4,
+      "exit_q": 0.75,
+      "band_upper_mult": 1.1,
+      "cooldown_sessions": 20,
+      "delay_sessions": 1
+    }
+  },
+  "auxiliary_modules": {
+    "A_pe_fixed14_34": {
+      "strategy": "A",
+      "fixed_exit_level": 14.34,
+      "data_requirements": ["index_price:000300", "index_valuation:000300:PE_TTM", "etf:SH510300"]
+    },
+    "A_pe_ratio_gate": {
+      "strategy": "A",
+      "gate": "ratio",
+      "ratio_base_date": "2015-01-05",
+      "ratio_numerator": "H00300",
+      "ratio_denominator": "885007.WI",
+      "ratio_threshold": 1.0,
+      "data_requirements": ["index_price:000300", "index_valuation:000300:PE_TTM", "etf:SH510300", "ratio_signals"]
+    },
+    "B_pb_dividend": {
+      "strategy": "B",
+      "dividend_index": "H30269",
+      "dividend_symbol": "SH512890",
+      "dividend_yield_threshold": 0.05,
+      "dividend_target_weight": 0.3,
+      "data_requirements": ["index_price:399006", "index_valuation:399006:PB_MRQ", "etf:SZ159915", "dividend_yield:H30269", "etf:SH512890"]
+    }
+  },
+  "cases": [
+    {"id": "A_pe_weekly", "group": "primary", "strategy": "A", "kind": "primary", "overrides": {}},
+    {"id": "B_pb_weekly", "group": "primary", "strategy": "B", "kind": "primary", "overrides": {}},
+    {"id": "A_stress_slippage_x2", "group": "stress", "strategy": "A", "kind": "primary", "overrides": {"slippage": 0.001}},
+    {"id": "B_stress_slippage_x2", "group": "stress", "strategy": "B", "kind": "primary", "overrides": {"slippage": 0.001}},
+    {"id": "A_stress_delay_t2", "group": "stress", "strategy": "A", "kind": "primary", "overrides": {"delay_sessions": 2}},
+    {"id": "B_stress_delay_t2", "group": "stress", "strategy": "B", "kind": "primary", "overrides": {"delay_sessions": 2}},
+    {"id": "A_sens_buy_upper_1_05", "group": "sensitivity", "strategy": "A", "kind": "primary", "overrides": {"band_upper_mult": 1.05}},
+    {"id": "A_sens_buy_upper_1_15", "group": "sensitivity", "strategy": "A", "kind": "primary", "overrides": {"band_upper_mult": 1.15}},
+    {"id": "A_sens_exit_q_0_80", "group": "sensitivity", "strategy": "A", "kind": "primary", "overrides": {"exit_q": 0.8}},
+    {"id": "A_sens_exit_q_0_90", "group": "sensitivity", "strategy": "A", "kind": "primary", "overrides": {"exit_q": 0.9}},
+    {"id": "A_sens_cooldown_10", "group": "sensitivity", "strategy": "A", "kind": "primary", "overrides": {"cooldown_sessions": 10}},
+    {"id": "A_sens_cooldown_30", "group": "sensitivity", "strategy": "A", "kind": "primary", "overrides": {"cooldown_sessions": 30}},
+    {"id": "A_sens_wcap_0_50", "group": "sensitivity", "strategy": "A", "kind": "primary", "overrides": {"w_cap": 0.5}},
+    {"id": "A_sens_wcap_0_70", "group": "sensitivity", "strategy": "A", "kind": "primary", "overrides": {"w_cap": 0.7}},
+    {"id": "B_sens_buy_upper_1_05", "group": "sensitivity", "strategy": "B", "kind": "primary", "overrides": {"band_upper_mult": 1.05}},
+    {"id": "B_sens_buy_upper_1_15", "group": "sensitivity", "strategy": "B", "kind": "primary", "overrides": {"band_upper_mult": 1.15}},
+    {"id": "B_sens_exit_q_0_70", "group": "sensitivity", "strategy": "B", "kind": "primary", "overrides": {"exit_q": 0.7}},
+    {"id": "B_sens_exit_q_0_80", "group": "sensitivity", "strategy": "B", "kind": "primary", "overrides": {"exit_q": 0.8}},
+    {"id": "B_sens_cooldown_10", "group": "sensitivity", "strategy": "B", "kind": "primary", "overrides": {"cooldown_sessions": 10}},
+    {"id": "B_sens_cooldown_30", "group": "sensitivity", "strategy": "B", "kind": "primary", "overrides": {"cooldown_sessions": 30}},
+    {"id": "B_sens_wcap_0_30", "group": "sensitivity", "strategy": "B", "kind": "primary", "overrides": {"w_cap": 0.3}},
+    {"id": "B_sens_wcap_0_50", "group": "sensitivity", "strategy": "B", "kind": "primary", "overrides": {"w_cap": 0.5}},
+    {"id": "A_pe_fixed14_34", "group": "auxiliary", "strategy": "A", "kind": "auxiliary", "overrides": {"fixed_exit_level": 14.34}},
+    {"id": "A_pe_ratio_gate", "group": "auxiliary", "strategy": "A", "kind": "auxiliary", "overrides": {"gate": "ratio"}},
+    {"id": "B_pb_dividend", "group": "auxiliary", "strategy": "B", "kind": "auxiliary", "overrides": {"dividend_module": true}}
+  ],
+  "benchmarks": [
+    {"id": "cash", "kind": "cash"},
+    {"id": "A_etf_buy_hold_95", "kind": "buy_hold", "strategy": "A", "initial_weight": 0.95},
+    {"id": "A_etf_buy_hold_cap", "kind": "buy_hold", "strategy": "A", "initial_weight": 0.6},
+    {"id": "B_etf_buy_hold_95", "kind": "buy_hold", "strategy": "B", "initial_weight": 0.95},
+    {"id": "B_etf_buy_hold_cap", "kind": "buy_hold", "strategy": "B", "initial_weight": 0.4}
+  ],
+  "status_vocabulary": [
+    "registered",
+    "implementation_passed",
+    "historical_run_complete",
+    "data_or_scope_blocked",
+    "historical_goals_passed"
+  ],
+  "data_requirements": {
+    "index_price": ["000300", "399006"],
+    "index_valuation": [["000300", "PE_TTM"], ["399006", "PB_MRQ"]],
+    "etf": ["SH510300", "SZ159915", "SH512890"],
+    "optional": ["ratio_signals", "dividend_yield:H30269"]
+  }
+}

@@ -1,8 +1,8 @@
 {
-  "version": "3.0.1",
+  "version": "3.4.0",
   "start": "2016-09-12",
   "initial_capital": 1000000,
-  "cadence": "weekly_first_session_close_next_open",
+  "cadence": "weekly_first_session_close_per_strategy_execution",
   "decision_time": "19:00 Asia/Shanghai",
   "goals": {
     "cagr": 0.135,
@@ -11,107 +11,42 @@
   },
   "strategies": [
     {
-      "id": "lightgbm",
-      "name": "LightGBM 核心卫星",
-      "color": "#2b6ad6",
+      "id": "csi300_pe_equal",
+      "name": "稳健策略 · 沪深300PE（等权）",
+      "color": "#167d8d",
       "status": "formal_service",
+      "kind": "valuation_bands",
+      "case_id": "A_pe_weekly",
+      "symbol": "SH510300",
+      "valuation_metric": "PE_TTM_EQUAL",
+      "protocol_path": "valuation_strategy_protocol.json",
+      "account_basis": "实际份额、分红应收及到账现金；等权估值，历史重建非PIT",
+      "description": "沪深300等权PE低估分三批建仓，85%历史估值分位退出；60%权益上限，其余现金。",
       "policy": {
-        "version": "2.1.1",
-        "hypothesis": "债券黄金底仓与带排名缓冲的低复杂度轮动可降低无效换仓及执行路径依赖，在一致风险成本下争取优于简单动量。",
-        "development_basis": "已研究历史上的开发选择：v2.1 Ridge候选未通过回撤与延迟压力，保留完整失败运行，回到原LightGBM验证新执行规则。统计结果不是独立样本外确认，仍须全量准入和真实前瞻。",
-        "rejected_development_run": "20260912-215048-6f852829",
-        "research_start": "2016-01-01",
-        "previously_examined_through": "2026-09-12",
-        "candidate_models": [
-          "lightgbm"
-        ],
-        "primary_model": "lightgbm",
-        "portfolio_style": "core_satellite",
-        "defensive_weights": {
-          "SH511260": 0.2,
-          "SH518880": 0.1
-        },
-        "satellite_weight": 0.65,
-        "rank_buffer": 2,
-        "conservative_buy_budget": true,
-        "label_horizon": 20,
-        "execution": "signal_close_t_execute_open_t_plus_1",
-        "initial_capital": 1000000.0,
-        "topk": 6,
-        "n_drop": 1,
-        "hold_days": 20,
-        "max_weight": 0.2,
-        "max_group_weight": 0.35,
-        "max_equity_weight": 0.7,
-        "max_gross_weight": 0.95,
-        "vol_target": 0.15,
-        "covariance_days": 60,
-        "max_daily_turnover": 0.2,
-        "max_adv_participation": 0.02,
+        "max_equity_weight": 0.6,
+        "max_gross_weight": 0.6,
+        "min_cash_share": 0.05,
+        "exit_quantile": 0.85,
+        "cooldown_sessions": 20,
+        "lookback_years": 5,
         "commission": 0.0003,
         "minimum_commission": 0.2,
         "slippage": 0.0005,
-        "impact_coefficient": 0.002,
-        "rebalance_band": 0.02,
-        "seed": 20260912,
-        "annualization_days": 252,
-        "max_drawdown_acceptance": 0.2,
-        "min_forward_days": 126,
-        "bootstrap_block_days": 21,
-        "bootstrap_samples": 1000,
-        "stress_slippage_multipliers": [
-          1.0,
-          2.0,
-          3.0
-        ],
-        "stress_capital_multipliers": [
-          1.0,
-          10.0,
-          100.0
-        ],
-        "stress_fill_fractions": [
-          1.0,
-          0.5
-        ],
-        "stress_execution_delays": [
-          1,
-          2
-        ],
-        "min_forward_fill_ratio": 0.95,
-        "parameter_topk": [
-          4,
-          6,
-          8
-        ],
-        "parameter_hold_days": [
-          10,
-          20,
-          30
-        ],
-        "historical_universe_audited": false,
-        "corporate_actions_audited": false
+        "max_adv_participation": 0.02,
+        "initial_capital": 1000000
       },
-      "account_basis": "复权全收益代理；历史数量为复权等值份额",
-      "description": "27只境内权益ETF轮动，20%国债＋10%黄金底仓，65%权益卫星，至少5%现金。"
+      "risk_label": "稳健策略",
+      "display_priority": 1
     },
     {
       "id": "trend200_vol15",
-      "name": "通信 / 黄金 · 趋势200",
+      "name": "平衡策略 · 通信/黄金",
       "color": "#ae761d",
       "status": "formal_service",
       "policy": {
         "version": "2.1.1",
-        "hypothesis": "债券黄金底仓与带排名缓冲的低复杂度轮动可降低无效换仓及执行路径依赖，在一致风险成本下争取优于简单动量。",
-        "development_basis": "已研究历史上的开发选择：v2.1 Ridge候选未通过回撤与延迟压力，保留完整失败运行，回到原LightGBM验证新执行规则。统计结果不是独立样本外确认，仍须全量准入和真实前瞻。",
-        "rejected_development_run": "20260912-215048-6f852829",
         "research_start": "2021-01-01",
         "previously_examined_through": "2026-09-12",
-        "candidate_models": [
-          "momentum",
-          "ridge",
-          "lightgbm"
-        ],
-        "primary_model": "lightgbm",
         "portfolio_style": "core_satellite",
         "defensive_weights": {
           "SH511260": 0.2,
@@ -193,8 +128,71 @@
       },
       "trend_window": 200,
       "account_basis": "实际份额、分红应收与到账现金独立记账",
-      "description": "60%通信＋35%黄金，200日趋势门槛与15%波动预算；通信失去市场资格才用沪深300替代。"
+      "description": "60%通信＋35%黄金，200日趋势门槛与15%波动预算；通信失去市场资格才用沪深300替代。",
+      "risk_label": "平衡策略",
+      "display_priority": 2
+    },
+    {
+      "id": "dividend_band_a",
+      "name": "积极策略 · A：隐含股息率七档估值带＋国债",
+      "risk_label": "积极策略",
+      "display_priority": 3,
+      "color": "#a84c54",
+      "status": "formal_service",
+      "kind": "dividend_band",
+      "index_code": "H20269",
+      "price_index_code": "H30269",
+      "bond_symbol": "SH511260",
+      "account_basis": "H20269指数等值＋511260复权等值、分数份额自融资；非ETF整数委托，已计基础交易费用及红利复制费",
+      "description": "252交易日隐含派息估值七档配置红利与国债，周首收盘信号、T+1收盘模拟执行；国债上市前留现金。",
+      "policy": {
+        "initial_capital": 1000000,
+        "band_table": [
+          [
+            5.0,
+            0.95
+          ],
+          [
+            4.8,
+            0.85
+          ],
+          [
+            4.2,
+            0.7
+          ],
+          [
+            4.0,
+            0.6
+          ],
+          [
+            3.8,
+            0.5
+          ],
+          [
+            3.6,
+            0.35
+          ],
+          [
+            -999.0,
+            0.2
+          ]
+        ],
+        "dividend_window": 252,
+        "max_gross_weight": 0.95,
+        "rebalance_band": 0.05,
+        "transaction_cost": 0.001,
+        "minimum_fee": 5.0,
+        "replication_fee": 0.006,
+        "execution": "next_session_close",
+        "account_model": "index_equivalent_fractional"
+      }
     }
   ],
-  "execution_revision": "保持目标不产生取整碎单，真实账户只输出整数委托"
+  "execution_revision": "A为周首信号、T+1收盘等值模拟；稳健与平衡沿用T+1开盘执行；不连接券商",
+  "retired_strategy_ids": [
+    "chinext_pb_equal",
+    "lightgbm",
+    "dividend_lowvol_total_return"
+  ],
+  "presentation_note": "稳健/平衡/积极为用户指定展示分类，不代表保本、收益承诺或已通过投资准入。"
 }

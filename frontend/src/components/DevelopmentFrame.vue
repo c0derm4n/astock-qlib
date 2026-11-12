@@ -1,10 +1,10 @@
 <template>
   <div class="development-page">
     <header class="dev-page-heading"><div><div class="dev-eyebrow">FORMAL WEEKLY / DEVELOPMENT</div><h1>{{ title }}</h1><p>{{ subtitle }}</p></div><slot name="actions"><button class="dev-button" :disabled="loading" @click="$emit('reload')">{{ loading ? '读取中…' : '刷新快照' }}</button></slot></header>
-    <div v-if="snapshot" class="dev-snapshot-bar"><span><i></i>行情截至 <b>{{ snapshot.data_end }}</b></span><span>生成 {{ formatTime(snapshot.completed_at) }}</span><span class="dev-run">运行 {{ snapshot.run_id }}</span><span>周首收盘信号 · 次交易日开盘</span></div>
+    <div v-if="snapshot" class="dev-snapshot-bar"><span><i></i>行情截至 <b>{{ snapshot.data_end }}</b></span><span>生成 {{ formatTime(snapshot.completed_at) }}</span><span class="dev-run">运行 {{ snapshot.run_id }}</span><span>交易策略：周首信号 · 次日开盘；指数：每日参考</span></div>
     <div v-if="snapshot?.refresh_error" class="dev-notice warning" role="alert">行情更新未完成：{{ snapshot.refresh_error }}。当前展示最后有效数据。</div>
     <div v-if="error" class="dev-notice error" role="alert"><span>{{ error }}</span><button class="dev-button" @click="$emit('reload')">重新读取</button></div>
-    <div v-if="loading && !snapshot" class="dev-loading" role="status"><span class="dev-spinner"></span>正在读取正式双策略快照…</div>
+    <div v-if="loading && !snapshot" class="dev-loading" role="status"><span class="dev-spinner"></span>正在读取正式策略快照…</div>
     <div v-else-if="!snapshot && !error" class="dev-empty">暂无正式快照，请到<router-link :to="{ name: 'pipeline' }">数据管道</router-link>构建。</div>
     <slot v-if="snapshot || allowEmpty" />
     <footer class="dev-page-footer">正式登记与投资准入分开判定；年度亏损和最大回撤优先于年化收益。<span>Asia / Shanghai</span></footer>

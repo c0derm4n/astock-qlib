@@ -1,15 +1,15 @@
 <template>
-  <DevelopmentFrame title="数据管道" subtitle="统一更新正式双策略：行情校验、年度模型、2016年起周频回放与最新建议一起构建，完成后发布新快照。" :snapshot="snapshot" :loading="loading" :error="error" allow-empty @reload="load">
-    <template #actions><button class="dev-button primary" :disabled="job.running || submitting || !statusReady" @click="run(true)">{{ submitting || job.running ? '任务正在运行…' : '更新行情并重建双策略' }}</button></template>
+  <DevelopmentFrame title="数据管道" subtitle="统一更新正式策略：行情校验、按策略执行的规则或指数、周频回放与最新建议一起构建，完成后发布新快照。" :snapshot="snapshot" :loading="loading" :error="error" allow-empty @reload="load">
+    <template #actions><button class="dev-button primary" :disabled="job.running || submitting || !statusReady" @click="run(true)">{{ submitting || job.running ? '任务正在运行…' : '更新行情并重建正式策略' }}</button></template>
     <div v-if="statusError" class="dev-notice error" role="alert">{{ statusError }}<button class="dev-button" @click="poll">重新连接</button></div>
     <div v-if="submitError || job.error" class="dev-notice error" role="alert">{{ submitError || job.error }}。已完成的正式快照继续保留。</div>
-    <section class="dev-panel"><div class="dev-panel-head"><div><h2>正式双策略构建</h2><p>两种入口都会完整生成模型、历史回放、候选与调仓建议；整个任务只能同时运行一份。</p></div><span class="dev-badge" :class="job.error ? 'fail' : job.finished_at && !job.running ? 'pass' : ''">{{ job.running ? '运行中' : job.error ? '上次任务有错误' : job.finished_at ? '已完成' : '等待任务' }}</span></div>
+    <section class="dev-panel"><div class="dev-panel-head"><div><h2>正式策略构建</h2><p>两种入口都会完整生成各策略的规则、历史回放、候选与调仓建议；整个任务只能同时运行一份。</p></div><span class="dev-badge" :class="job.error ? 'fail' : job.finished_at && !job.running ? 'pass' : ''">{{ job.running ? '运行中' : job.error ? '上次任务有错误' : job.finished_at ? '已完成' : '等待任务' }}</span></div>
       <ol class="formal-phases"><li v-for="(stage, index) in stages" :key="stage.id" :class="{ active: job.running && currentStage === stage.id }"><span>{{ String(index + 1).padStart(2, '0') }}</span><div><b>{{ stage.name }}</b><p>{{ stage.description }}</p></div></li></ol>
-      <div class="pipeline-actions"><button class="dev-button primary" :disabled="job.running || submitting || !statusReady" @click="run(true)">更新行情并重建双策略</button><button class="dev-button" :disabled="job.running || submitting || !statusReady" @click="run(false)">重建模型、回测和建议</button><p>前者抓取并校验增量行情；后者使用已有正式数据库，适合核对规则或重新生成结果。</p></div>
+      <div class="pipeline-actions"><button class="dev-button primary" :disabled="job.running || submitting || !statusReady" @click="run(true)">更新行情并重建正式策略</button><button class="dev-button" :disabled="job.running || submitting || !statusReady" @click="run(false)">重建规则、回放和参考</button><p>前者抓取并校验增量行情；后者使用已有正式数据库，适合核对规则或重新生成结果。</p></div>
       <div class="job-status" aria-live="polite"><div v-if="job.running"><span class="dev-spinner"></span><b>{{ stageLabel }}</b><span>{{ job.log_tail?.at(-1) || '正在启动正式构建…' }}</span></div><p v-else>{{ job.finished_at ? `最近任务结束：${formatTime(job.finished_at)}` : '当前没有运行中的正式构建任务。' }}</p><p v-if="job.started_at">开始 {{ formatTime(job.started_at) }}</p></div>
     </section>
     <section class="dev-panel"><div class="dev-panel-head"><div><h2>当前发布快照</h2><p>界面与建议始终读取已完成的快照；构建中的中间文件不对外展示。</p></div><button class="dev-button" :disabled="loading" @click="load">刷新发布状态</button></div><div v-if="snapshot" class="published-snapshot"><div><span>运行标识</span><b>{{ snapshot.run_id }}</b></div><div><span>行情截止</span><b>{{ snapshot.data_end }}</b></div><div><span>完成时间</span><b>{{ formatTime(snapshot.completed_at) }}</b></div><div><span>正式策略</span><b>{{ snapshot.strategies.map(item => item.name).join(' / ') }}</b></div></div><div v-else class="dev-empty">尚无可用正式快照，请启动完整构建。</div></section>
-    <section class="dev-panel"><div class="dev-panel-head"><div><h2>运行日志</h2><p>显示本次任务最近120行；错误与行情截止日期需一起核对。</p></div><span>{{ job.running ? '自动更新' : '任务日志' }}</span></div><pre ref="logElement" class="formal-log" aria-label="正式双策略构建日志">{{ job.log_tail?.join('\n') || '当前暂无任务日志。' }}</pre></section>
+    <section class="dev-panel"><div class="dev-panel-head"><div><h2>运行日志</h2><p>显示本次任务最近120行；错误与行情截止日期需一起核对。</p></div><span>{{ job.running ? '自动更新' : '任务日志' }}</span></div><pre ref="logElement" class="formal-log" aria-label="正式策略构建日志">{{ job.log_tail?.join('\n') || '当前暂无任务日志。' }}</pre></section>
   </DevelopmentFrame>
 </template>
 <script setup>
@@ -19,7 +19,7 @@ import DevelopmentFrame from '../components/DevelopmentFrame.vue'
 import { useFormalSnapshot, requestError, formatTime } from '../composables/useFormalSnapshot'
 const { snapshot, loading, error, load } = useFormalSnapshot()
 const job = ref({ running: false, log_tail: [] }), submitting = ref(false), submitError = ref(''), statusError = ref(''), statusReady = ref(false), logElement = ref(null)
-const stages = [{ id: 'fetch', name: '行情校验', description: '核对历史重叠、复权与增量数据' }, { id: 'model', name: '年度模型', description: 'LightGBM年度训练与验证切分' }, { id: 'backtest', name: '周频回放', description: '两条策略的账户、持仓与成交' }, { id: 'publish', name: '发布建议', description: '校验完整快照后统一发布' }]
+const stages = [{ id: 'fetch', name: '行情校验', description: '核对历史重叠、复权与增量数据' }, { id: 'model', name: '策略计算', description: 'PE估值、固定趋势与隐含股息率七档' }, { id: 'backtest', name: '周频回放', description: '真实份额账本与指数等值模拟' }, { id: 'publish', name: '发布建议', description: '校验完整快照后统一发布' }]
 const currentStage = computed(() => ({ train: 'model', decide: 'publish', replay: 'backtest', loading: 'fetch' })[job.value.phase || job.value.current_step] || job.value.phase || job.value.current_step)
 const stageLabel = computed(() => stages.find(stage => stage.id === currentStage.value)?.name || '正在构建正式策略')
 let timer, controller, polling = null, wasRunning = false, disposed = false

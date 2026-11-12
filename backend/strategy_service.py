@@ -24,6 +24,9 @@ def snapshot():
         directory = (ROOT / pointer['directory']).resolve()
         if directory.parent != (OUT / 'runs').resolve() or directory.name != pointer['run_id']:
             raise ValueError('正式产物指针不合法')
+        registration = json.loads((directory / 'registration.json').read_text(encoding='utf-8'))
+        if registration['registry'] != registry():
+            raise ValueError('策略集合已调整，请先重建当前三项快照；不加载停用策略')
         with _lock:
             if _cache.get('run_id') != pointer['run_id']:
                 completed = json.loads((directory / 'completion.json').read_text(encoding='utf-8'))
@@ -47,10 +50,12 @@ def snapshot():
             item['runtime'] = runtime_status(item)
         return result
     except (OSError, KeyError, ValueError) as exc:
-        raise ArtifactUnavailableError('正式双策略快照尚不可用，请运行刷新：' + str(exc)) from exc
+        raise ArtifactUnavailableError('正式策略快照尚不可用，请运行刷新：' + str(exc)) from exc
 
 
 def account_preview(id_, run_id, cash, holdings):
+    if id_ not in [d['id'] for d in registry()['strategies']]:
+        raise KeyError(id_)
     result = snapshot()
     if result['run_id'] != run_id:
         raise ValueError('策略快照已更新，请刷新页面后重新试算')
@@ -90,11 +95,9 @@ def _worker(fetch):
                         _job['log_tail'] = list(logs)
                         if line.startswith('免费源') or line.startswith('免费增量'):
                             _job['phase'] = 'fetch'
-                        elif line.startswith('正式 LightGBM 年度模型'):
-                            _job['phase'] = 'model'
                         elif '完成：资金' in line:
                             _job['phase'] = 'backtest'
-                        elif line.startswith('正式双策略快照已发布'):
+                        elif line.startswith('正式三策略快照已发布'):
                             _job['phase'] = 'publish'
                 if proc.wait() != 0:
                     raise RuntimeError('正式策略刷新失败，原有效快照保留；详见刷新日志')

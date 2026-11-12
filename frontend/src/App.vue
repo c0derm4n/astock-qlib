@@ -6,10 +6,10 @@
       <nav aria-label="开发后台功能">
         <router-link v-for="item in navigation" :key="item.path" :to="item.path"><el-icon><component :is="item.icon" /></el-icon><span>{{ item.label }}</span></router-link>
       </nav>
-      <div class="sidebar-footer"><router-link to="/">← 返回策略工作台</router-link><p>LightGBM / 通信·黄金</p><span>正式周频 · 本地服务</span></div>
+      <div class="sidebar-footer"><router-link to="/">← 返回策略工作台</router-link><p>稳健 / 平衡 / 积极</p><span>正式周频 · 本地服务</span></div>
     </aside>
     <div class="development-workspace">
-      <header class="development-header"><div><span>开发后台</span><b>{{ $route.meta.title }}</b></div><span v-if="pipe.running" class="development-job running">双策略刷新运行中</span><span v-else-if="pipe.error" class="development-job failed">最近刷新失败</span><span v-else class="development-job ready">正式双策略</span></header>
+      <header class="development-header"><div><span>开发后台</span><b>{{ $route.meta.title }}</b></div><span v-if="pipe.running" class="development-job running">正式策略刷新运行中</span><span v-else-if="pipe.error" class="development-job failed">最近刷新失败</span><span v-else class="development-job ready">正式策略服务</span></header>
       <main class="development-content"><router-view /></main>
     </div>
   </div>
@@ -22,7 +22,7 @@ import { Odometer, Tickets, TrendCharts, VideoPlay, Bell } from '@element-plus/i
 import api from './api'
 const route = useRoute()
 const navigation = [
-  { path: '/development', label: '双策略研究总览', icon: Odometer },
+  { path: '/development', label: '正式策略研究总览', icon: Odometer },
   { path: '/development/picks', label: '选ETF清单', icon: Tickets },
   { path: '/development/decision', label: '周度调仓', icon: Bell },
   { path: '/development/backtest', label: '回测分析', icon: TrendCharts },

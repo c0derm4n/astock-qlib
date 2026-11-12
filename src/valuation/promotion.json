@@ -1,0 +1,12 @@
+{
+  "source_protocol": "valuation-bands-etfrun-equal-20261109-v1",
+  "source_run": "real-etfrun-equal-v2",
+  "source_sha256": {
+    "data.py": "b9129340bf7c952b3b1f9c734529e4f46332d1778f1ad8d19862280901f6f056",
+    "calibration.py": "de40dbb037f6c111b8d06c46e17120eec557dcea2d77c8bc5a1bc073c9712bb0",
+    "signals.py": "0b6fe58ea2fe6fd7d3b91a8df4da1e8201dde8bb2b6736811a56363b0a8a5c0a",
+    "engine.py": "2e298327cabaaf896ad81a249f46f60e81ee5ed621554cd6e1bf3de4cb275185",
+    "verify.py": "adf0a7f6f9e0b03b69319dfb2f8f9bb8249dd4d8feacb649896c0bc1fd521963"
+  },
+  "note": "初始迁入文件逐字节一致；之后的正式适配由正式测试验证"
+}

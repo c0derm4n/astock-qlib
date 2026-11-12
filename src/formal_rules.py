@@ -5,17 +5,20 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 import universe
-from src.models import sample_frame, ranked_labels, learn_bundle, predict_bundle
 from src.temporal import purged_mask
 from src.portfolio import constrain_weights
 
 ROOT = Path(__file__).resolve().parents[1]
+ACTIVE_STRATEGY_IDS = ('csi300_pe_equal', 'trend200_vol15', 'dividend_band_a')
 SYMBOLS = frozenset(('SH' if c.startswith(('5', '6')) else 'SZ') + c
                     for c in universe.UNIVERSE if universe.get_asset_class(c) != 'qdii')
 
 
 def registry():
-    return json.loads((ROOT / 'strategy_registry.json').read_text(encoding='utf-8'))
+    spec = json.loads((ROOT / 'strategy_registry.json').read_text(encoding='utf-8'))
+    if tuple(d['id'] for d in spec['strategies']) != ACTIVE_STRATEGY_IDS:
+        raise ValueError('正式登记必须按稳健、平衡、积极顺序包含当前三项策略')
+    return spec
 
 
 def weekly_sessions(calendar, start):
@@ -60,6 +63,7 @@ def trend_targets(candidate, date, eligible, current, returns, prices, policy, e
 
 def annual_lightgbm(market, policy):
     """每个自然年只使用年前成熟标签；保留当年同一模型供最新建议复用。"""
+    from src.models import sample_frame, ranked_labels, learn_bundle, predict_bundle
     x, y = sample_frame(market)
     ends = market.label_ends.reindex(x.index)
     dates = x.index.get_level_values('datetime')

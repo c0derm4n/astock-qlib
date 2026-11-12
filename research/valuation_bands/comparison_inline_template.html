@@ -1,0 +1,53 @@
+<section id="strategy-wealth-100k" data-viz-composition>
+  <style>
+    #strategy-wealth-100k { display: grid; gap: calc(var(--font-size-base) * 1); color: var(--foreground); }
+    #strategy-wealth-100k .intro { display: grid; gap: calc(var(--font-size-base) * .35); padding-right: 90px; }
+    #strategy-wealth-100k .caption { color: var(--muted-foreground); }
+    #strategy-wealth-100k .chart-heading { display: grid; gap: calc(var(--font-size-base) * .35); }
+    #strategy-wealth-100k .table-heading { font-weight: 500; }
+    @media(max-width:480px) { #strategy-wealth-100k .intro { padding-right: 0; } }
+  </style>
+  <div class="intro">
+    <h2>10万元，从2016年开始</h2>
+    <p class="text-small caption">2016-09-12 — 2026-11-04 · 八项历史比较 · 人民币</p>
+  </div>
+  <div class="viz-controls">
+    <label class="form-label" for="strategy-wealth-view">查看
+      <select class="form-select" id="strategy-wealth-view" disabled>
+        <option value="wealth">账户金额</option>
+        <option value="drawdown">距历史高点的回撤</option>
+      </select>
+    </label>
+  </div>
+  <div class="chart-heading">
+    <h3 id="strategy-wealth-heading">账户金额（万元）</h3>
+    <div data-viz-container aria-label="八条历史曲线，均从10万元开始。可使用图例选择系列。"></div>
+    <p class="text-small caption">曲线按周末观察展示；表中收益与最大回撤使用全部日频数据。</p>
+  </div>
+  <div class="table-responsive">
+    <table class="table table-sm tabular-nums">
+      <caption class="sr-only">八项策略与基准：10万元起始的期末金额、年化收益、最差完整年及每日最大回撤。</caption>
+      <thead><tr><th scope="col">策略 / 基准</th><th scope="col" class="text-end">期末金额<br>万元</th><th scope="col" class="text-end">年化</th><th scope="col" class="text-end">最差完整年</th><th scope="col" class="text-end">最大回撤</th></tr></thead>
+      <tbody>__TABLE_ROWS__</tbody>
+    </table>
+  </div>
+  <p class="text-small caption">完整年度：2017—2025。10万元为历史净值等比例换算；指数包含股息再投、未扣复制成本。标普500含人民币汇率变化，按当地收盘日作事后参考。</p>
+  <script type="application/json" data-viz-chart id="strategy-wealth-config">__WEALTH_CONFIG__</script>
+  <script type="application/json" data-viz-chart id="strategy-drawdown-config">__DRAWDOWN_CONFIG__</script>
+</section>
+<script type="module">
+  import { mountChart } from "https://persistent.oaistatic.com/plugins/visualize/charts/1.2.3/element.js";
+  const root = document.getElementById("strategy-wealth-100k");
+  const select = root.querySelector("#strategy-wealth-view");
+  const heading = root.querySelector("#strategy-wealth-heading");
+  const configs = {
+    wealth: JSON.parse(root.querySelector("#strategy-wealth-config").textContent),
+    drawdown: JSON.parse(root.querySelector("#strategy-drawdown-config").textContent)
+  };
+  const chart = mountChart(root.querySelector("[data-viz-container]"), configs.wealth);
+  select.disabled = false;
+  select.addEventListener("change", () => {
+    chart.config = configs[select.value];
+    heading.textContent = select.value === "wealth" ? "账户金额（万元）" : "距历史高点的回撤（%）";
+  });
+</script>

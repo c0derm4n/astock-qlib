@@ -1,9 +1,8 @@
-"""双策略正式服务产物构建；独立数据库、不可变运行目录、原子当前指针。"""
+"""三项正式服务产物构建；独立数据库、不可变运行目录、原子当前指针。"""
 from __future__ import annotations
 import argparse
 import copy
 import json
-import pickle
 import shutil
 import uuid
 from pathlib import Path
@@ -15,10 +14,8 @@ import universe
 from src.artifacts import write_json_atomic, json_safe
 from src.runs import sha256
 from src.market import load_market
-from src.portfolio import target_weights
 from src.formal_orders import plan_orders
-from src.formal_rules import ROOT, SYMBOLS, registry, weekly_sessions, annual_lightgbm, trend_targets
-from src.formal_adjusted import simulate
+from src.formal_rules import ROOT, SYMBOLS, registry, weekly_sessions, trend_targets
 from src.formal_cash import simulate_cash, audit_cash_ledger
 from src.formal_history import weekly_holdings_history
 
@@ -48,24 +45,53 @@ def next_session(day):
     return sessions(pd.Timestamp(day) + pd.Timedelta(days=1), pd.Timestamp(day) + pd.Timedelta(days=30))[0]
 
 
+def snapshot_needs_refresh(at=None):
+    """启动时同时核对日期和登记，防止已升级配置继续显示旧双策略。"""
+    try:
+        pointer = json.loads((OUT / 'current.json').read_text(encoding='utf-8'))
+        directory = (ROOT / pointer['directory']).resolve()
+        if directory.parent != (OUT / 'runs').resolve():
+            return True
+        registration = json.loads((directory / 'registration.json').read_text(encoding='utf-8'))
+        return (registration['registry'] != registry()
+                or pd.Timestamp(pointer['data_end']) < completed_day(at))
+    except (OSError, ValueError, KeyError):
+        return True
+
+
 def runtime_status(payload, at=None):
     """随请求时间重算时效；旧快照不能永久保持可执行。"""
     at = at if at is not None else now()
     expected = completed_day(at)
     stale = pd.Timestamp(payload['data_end']) < expected
+    if payload.get('kind') == 'index_benchmark':
+        return {'expected_data_end': str(expected.date()), 'stale': stale, 'valuation_stale': False,
+                'advice_status': 'stale' if stale else 'reference',
+                'advice_label': '指数数据过期 · 请先刷新' if stale else '全收益指数参考 · 不生成订单',
+                'execution_date': None, 'next_signal_date': None, 'can_execute': False, 'paper_only': True}
+    valuation_stale = False
+    if payload.get('kind') == 'valuation_bands':
+        prior = sessions(expected - pd.Timedelta(days=20), expected)[-2]
+        valuation_stale = pd.Timestamp(payload['valuation_data_end']) < prior
+        stale = stale or valuation_stale
     signal = pd.Timestamp(payload['advice']['signal_date'])
     execute = next_session(signal)
     today = at.tz_localize(None).normalize()
-    if stale:
+    if valuation_stale:
+        status, label = 'stale', '估值数据过期 · 暂停新增建议'
+    elif stale:
         status, label = 'stale', '行情过期 · 请先刷新'
-    elif execute < today or (execute == today and (at.hour, at.minute) >= (9, 30)):
-        status, label = 'elapsed', '本周开盘执行窗口已过'
+    elif payload['advice'].get('blocked'):
+        status, label = 'blocked', payload['advice'].get('blocked_reason', '估值数据不可用')
+    elif execute < today or (execute == today and (at.hour, at.minute) >= (
+            (15, 0) if payload.get('kind') == 'dividend_band' else (9, 30))):
+        status, label = 'elapsed', '本周收盘模拟窗口已过' if payload.get('kind') == 'dividend_band' else '本周开盘执行窗口已过'
     else:
-        status, label = 'pending', '下一交易日开盘待评估'
+        status, label = 'pending', '下一交易日收盘模拟调仓' if payload.get('kind') == 'dividend_band' else '下一交易日开盘待评估'
     future = sessions(today - pd.Timedelta(days=14), today + pd.Timedelta(days=30))
     first = weekly_sessions(future, future[0])
     remaining = first[(first > today) | ((first == today) & (at.hour < 19))]
-    return {'expected_data_end': str(expected.date()), 'stale': stale, 'advice_status': status,
+    return {'expected_data_end': str(expected.date()), 'stale': stale, 'valuation_stale': valuation_stale, 'advice_status': status,
             'advice_label': label, 'execution_date': str(execute.date()),
             'next_signal_date': str(remaining[0].date()),
             'can_execute': False, 'paper_only': True}
@@ -127,6 +153,15 @@ def advice_rows(targets, orders, quantities, cash, prices, eligible, strategy_id
 
 def preview(context, definition, cash, holdings):
     """真实账户试算使用与回放一致的目标与订单规则，输入不落盘。"""
+    if definition.get('kind') == 'valuation_bands':
+        from src.formal_valuation import PREVIEW_REASON
+        raise ValueError(PREVIEW_REASON)
+    if definition.get('kind') == 'index_benchmark':
+        from src.formal_index import PREVIEW_REASON
+        raise ValueError(PREVIEW_REASON)
+    if definition.get('kind') == 'dividend_band':
+        from src.formal_dividend import PREVIEW_REASON
+        raise ValueError(PREVIEW_REASON)
     quantities = {h['symbol']: h['quantity'] for h in holdings}
     days = {h['symbol']: h['holding_days'] for h in holdings}
     if set(quantities) - set(context['prices']):
@@ -139,14 +174,12 @@ def preview(context, definition, cash, holdings):
     returns = pd.DataFrame(context['returns'])
     returns.index = pd.to_datetime(returns.index)
     policy = definition['policy']
-    if definition['id'] == 'lightgbm':
-        targets = target_weights(pd.Series(context['scores'], dtype=float), context['eligible'], current, days,
-                                 returns, policy) if context.get('model_available', True) else {}
-    else:
-        history = pd.DataFrame(context['trend_prices'])
-        history.index = pd.to_datetime(history.index)
-        targets = trend_targets(definition['candidate'], pd.Timestamp(context['date']),
-                                context['eligible'], current, returns, history, policy)
+    if definition['id'] != 'trend200_vol15':
+        raise ValueError('该策略已停用或不支持账户试算')
+    history = pd.DataFrame(context['trend_prices'])
+    history.index = pd.to_datetime(history.index)
+    targets = trend_targets(definition['candidate'], pd.Timestamp(context['date']),
+                            context['eligible'], current, returns, history, policy)
     orders = plan_orders(targets, quantities, cash, prices, context['adv'], policy)
     return {'account': nav, 'cash': cash, 'signal_date': context['date'], 'targets': targets,
             'rows': advice_rows(targets, orders, quantities, cash, prices, context['eligible'], definition['id']),
@@ -220,62 +253,76 @@ def build(fetch=False):
         run_id = now().strftime('%Y%m%d-%H%M%S') + '-' + uuid.uuid4().hex[:8]
         directory = OUT / 'runs' / run_id
         directory.mkdir(parents=True)
+        from src.formal_valuation import prepare_data, build_strategy, PROTOCOL as VALUATION_PROTOCOL, SEED as VALUATION_SEED
+        previous_manifest = None
+        previous_directory = None
+        if (OUT / 'current.json').exists():
+            previous = json.loads((OUT / 'current.json').read_text(encoding='utf-8'))
+            previous_directory = (ROOT / previous['directory']).resolve()
+            if previous_directory.parent != (OUT / 'runs').resolve():
+                raise ValueError('旧正式快照目录不合法')
+            candidate = previous_directory / 'valuation_data/manifest.json'
+            if candidate.exists():
+                completed = json.loads((previous_directory / 'completion.json').read_text(encoding='utf-8'))
+                if sha256(candidate) != completed['artifact_hashes']['valuation_data/manifest.json']:
+                    raise ValueError('旧估值快照manifest哈希不匹配')
+                previous_manifest = candidate
+        valuation_data, valuation_errors = prepare_data(directory, market, action_spec, fetch, previous_manifest)
+        from src.formal_dividend import prepare_data as prepare_dividend_data, build_strategy as build_dividend_strategy, SEED as DIVIDEND_SEED
+        dividend_data = prepare_dividend_data(directory, market, fetch, previous_directory)
+        if valuation_errors:
+            refresh_error = '; '.join(filter(None, [refresh_error, *valuation_errors]))
+            print('估值更新未通过，保留最后有效估值：' + '; '.join(valuation_errors), flush=True)
         source_files = [ROOT / 'strategy_registry.json', ROOT / 'strategy_corporate_actions.json',
                         *sorted((ROOT / 'src').glob('formal_*.py')), ROOT / 'src/portfolio.py',
-                        ROOT / 'src/models.py', ROOT / 'src/market.py', ROOT / 'src/universe_filter.py']
+                        ROOT / 'src/market.py', ROOT / 'src/universe_filter.py', DIVIDEND_SEED, DIVIDEND_SEED.with_suffix('.metadata.json'),
+                        VALUATION_PROTOCOL, *sorted((ROOT / 'src/valuation').glob('*.py')),
+                        VALUATION_SEED, *[VALUATION_SEED.parent / entry['path'] for entry in
+                            json.loads(VALUATION_SEED.read_text(encoding='utf-8'))['files']]]
         hashes = {p.relative_to(ROOT).as_posix(): sha256(p) for p in source_files}
         write_json_atomic(directory / 'registration.json', {'registered_at': now().isoformat(), 'registry': spec,
             'market_fingerprint': market.fingerprint, 'database_sha256': sha256(DATABASE),
             'input_hashes': hashes, 'data_audit': market.audit, 'refresh_error': refresh_error,
+            'valuation_manifest': 'valuation_data/manifest.json',
+            'valuation_manifest_sha256': sha256(valuation_data.root / 'manifest.json'),
+            'dividend_manifest': 'dividend_data/manifest.json',
+            'dividend_manifest_sha256': sha256(directory / 'dividend_data/manifest.json'),
             'historical_selection_status': '已查看历史后的正式服务登记；非策略选择独立盲测'})
-        predictions, folds, bundle = annual_lightgbm(market, spec['strategies'][0]['policy'])
-        predictions.to_pickle(directory / 'predictions_lightgbm.pkl')
-        with (directory / 'annual_model.pkl').open('wb') as stream:
-            pickle.dump(bundle, stream)
-        write_json_atomic(directory / 'folds.json', {'folds': folds})
         strategies = []
-        signal_days = weekly_sessions(market.calendar, spec['start'])
         for definition in spec['strategies']:
             id_ = definition['id']
+            if definition.get('kind') == 'valuation_bands':
+                payload = build_strategy(directory, definition, spec, valuation_data, run_id, market.calendar[-1], stats, next_session)
+                strategies.append(payload)
+                print(f'{definition["name"]} 完成：资金 {payload["metrics"]["final_account"]:.2f}', flush=True)
+                continue
+            if definition.get('kind') == 'dividend_band':
+                payload = build_dividend_strategy(directory, definition, spec, dividend_data, run_id, stats, next_session)
+                strategies.append(payload)
+                print(f'{definition["name"]} 完成：资金 {payload["metrics"]["final_account"]:.2f}', flush=True)
+                continue
+            if id_ != 'trend200_vol15':
+                raise ValueError('正式登记包含未支持或已停用的策略：' + id_)
             latest, final_state = {}, {}
             def observe(date, quantities, cash, bought, exiting, targets, orders):
                 latest.clear()
                 latest.update(date=date, quantities=quantities, cash=cash, bought=bought,
                               exiting=sorted(exiting), targets=targets, orders=copy.deepcopy(orders))
-            if id_ == 'lightgbm':
-                holdings_log = []
-                mask = predictions.index.get_level_values('datetime').isin(signal_days)
-                scores = predictions[mask]
-                # 空预测周保留现状；共同起点缺预测则明确现金前缀。
-                unavailable = signal_days[~signal_days.isin(scores.index.get_level_values('datetime').unique())]
-                if len(unavailable):
-                    dummy = pd.Series(np.nan, index=pd.MultiIndex.from_product(
-                        [unavailable, ['SH510300']], names=['datetime', 'instrument']))
-                    scores = pd.concat([dummy, scores])
-                report, trades, issues = simulate(market, scores, definition['policy'], observer=observe,
-                    state=final_state, unavailable_dates=set(unavailable), holdings_log=holdings_log)
-                holdings = pd.DataFrame(holdings_log, columns=['date', 'symbol', 'quantity', 'value'])
-                holdings.to_csv(directory / f'{id_}_holdings.csv', index=False)
-                score = predictions.xs(latest['date'], level='datetime') if latest['date'] not in unavailable else pd.Series(dtype=float)
-                allowed_symbols = sorted(SYMBOLS)
-                ledger = None
-            else:
-                prices, returns = market.wide('adj_close'), market.wide('adj_close').pct_change(fill_method=None)
-                def select(scores, eligible, current, days, history, policy, *, exiting=()):
-                    return trend_targets(definition['candidate'], history.index[-1], eligible, current, history,
-                                         prices, policy, exiting)
-                report, trades, events, holdings, issues = simulate_cash(market, definition['candidate'],
-                    definition['policy'], spec['start'], action_spec['actions'], selector=select,
-                    observer=observe, state=final_state)
-                ledger = audit_cash_ledger(market, report, trades, events, spec['initial_capital'])
-                events.to_csv(directory / f'{id_}_actions.csv', index=False)
-                holdings.to_csv(directory / f'{id_}_holdings.csv', index=False)
-                score = pd.Series(dtype=float)
-                allowed_symbols = ['SH515880', 'SH518880', 'SH510300']
+            prices = market.wide('adj_close')
+            def select(scores, eligible, current, days, history, policy, *, exiting=()):
+                return trend_targets(definition['candidate'], history.index[-1], eligible, current, history,
+                                     prices, policy, exiting)
+            report, trades, events, holdings, issues = simulate_cash(market, definition['candidate'],
+                definition['policy'], spec['start'], action_spec['actions'], selector=select,
+                observer=observe, state=final_state)
+            ledger = audit_cash_ledger(market, report, trades, events, spec['initial_capital'])
+            events.to_csv(directory / f'{id_}_actions.csv', index=False)
+            holdings.to_csv(directory / f'{id_}_holdings.csv', index=False)
+            score = pd.Series(dtype=float)
+            allowed_symbols = ['SH515880', 'SH518880', 'SH510300']
             verify_execution(market, report, trades, spec['start'])
             context = context_at(market, latest['date'], score, allowed_symbols)
             context.update(exiting=latest['exiting'])
-            context['model_available'] = bool(len(score)) if id_ == 'lightgbm' else True
             write_json_atomic(directory / f'{id_}_context.json', context)
             metrics, drawdown = stats(report, spec['initial_capital'])
             checks = {'cagr': metrics['cagr'] >= spec['goals']['cagr'],
@@ -310,15 +357,18 @@ def build(fetch=False):
             trades.to_csv(directory / f'{id_}_trades.csv', index=False)
             strategies.append(payload)
             print(f'{definition["name"]} 完成：资金 {metrics["final_account"]:.2f}', flush=True)
+        for payload, definition in zip(strategies, spec['strategies']):
+            payload.update(risk_label=definition['risk_label'], display_priority=definition['display_priority'])
+            write_json_atomic(directory / f'{payload["id"]}.json', payload)
         for p, expected in hashes.items():
             if sha256(ROOT / p) != expected:
                 raise ValueError(f'运行中正式实现发生变化：{p}')
         write_json_atomic(directory / 'completion.json', {'run_id': run_id, 'completed_at': now().isoformat(),
-            'artifact_hashes': {p.name: sha256(p) for p in directory.iterdir() if p.is_file()},
+            'artifact_hashes': {p.relative_to(directory).as_posix(): sha256(p) for p in directory.rglob('*') if p.is_file()},
             'refresh_error': refresh_error})
         write_json_atomic(OUT / 'current.json', {'run_id': run_id, 'directory': directory.relative_to(ROOT).as_posix(),
             'completed_at': now().isoformat(), 'data_end': str(market.calendar[-1].date()), 'refresh_error': refresh_error})
-        print(f'正式双策略快照已发布：{directory}', flush=True)
+        print(f'正式三策略快照已发布：{directory}', flush=True)
         return directory
 
 

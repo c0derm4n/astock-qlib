@@ -1,11 +1,11 @@
-"""开发后台只读接口，全部基于新正式双策略的可绑定运行快照。"""
+"""开发后台只读接口，全部基于正式三策略的可绑定运行快照。"""
 from typing import Literal
 
 from fastapi import APIRouter, HTTPException, Query
 from backend import development_service
 
 router = APIRouter(prefix='/api/development', tags=['开发后台 · 正式周频'])
-StrategyId = Literal['lightgbm', 'trend200_vol15']
+StrategyId = Literal['csi300_pe_equal', 'trend200_vol15', 'dividend_band_a']
 RunId = Query(default=None, pattern=r'^\d{8}-\d{6}-[a-f0-9]{8}$')
 
 

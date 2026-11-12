@@ -1,4 +1,4 @@
-"""FastAPI 入口：正式双策略服务与开发后台。
+"""FastAPI 入口：正式三策略服务与开发后台。
 
 启动（在项目根目录）：
     uvicorn backend.main:app --host 127.0.0.1 --port 8000
@@ -21,7 +21,7 @@ from src.utils import to_qlib_symbol
 from backend.strategy_api import router as strategy_router
 from backend.development_api import router as development_router
 
-app = FastAPI(title="A股ETF双策略与开发后台 API", version="3.1.0")
+app = FastAPI(title="A股ETF三策略与开发后台 API", version="3.4.0")
 app.include_router(strategy_router)
 app.include_router(development_router)
 

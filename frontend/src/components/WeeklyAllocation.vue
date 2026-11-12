@@ -1,12 +1,12 @@
 <template>
-  <section class="weekly-allocation" aria-labelledby="allocation-title">
+  <section class="weekly-allocation" :aria-labelledby="`${strategy.id}-allocation-title`">
     <div class="allocation-heading">
-      <div><h3 id="allocation-title">仓位占比 <span>最近{{ weeks.length || 50 }}周</span></h3><p>每周收盘持仓市值 / 账户总资产 · 柱高为总投资仓位</p></div>
+      <div><h3 :id="`${strategy.id}-allocation-title`">仓位占比 <span>最近{{ weeks.length || 50 }}周</span></h3><p>{{ isDividendBand ? '周首信号日收盘等值持仓 / 账户总资产' : '每周收盘持仓市值 / 账户总资产' }} · 柱高为总投资仓位</p></div>
       <div class="allocation-legend" aria-label="仓位颜色图例"><span v-for="asset in assets" :key="asset.code"><i :style="{ background: asset.color }"></i>{{ asset.name }}</span></div>
     </div>
     <template v-if="weeks.length">
       <div ref="plot" class="allocation-plot" role="img" :aria-label="chartDescription"></div>
-      <p class="allocation-note">从左到右由旧到新；空仓周保留为0%。分色部分为各ETF仓位，柱顶间隔标注总仓位；拖动底部滑块可放大区间，悬停或展开明细可查看每周精确占比。本周按截至{{ strategy.data_end }}的收盘持仓展示，未完成周标记＊。现金与分红应收不计入投资仓位。</p>
+      <p class="allocation-note">从左到右由旧到新；空仓周保留为0%。分色部分为{{ isDividendBand ? '红利低波与国债的等值仓位' : '各ETF仓位' }}，柱顶间隔标注总仓位；拖动底部滑块可放大区间，悬停或展开明细可查看每周精确占比。{{ isDividendBand ? '按最近50个周首信号日的收盘账本展示。' : `本周按截至${strategy.data_end}的收盘持仓展示，未完成周标记＊。` }}现金与分红应收不计入投资仓位。</p>
       <details class="allocation-data"><summary>查看每周占比</summary><div class="allocation-table-scroll"><table><caption class="visually-hidden">最近{{ weeks.length }}周投资仓位，按账户总资产计算</caption><thead><tr><th>周首 / 估值日</th><th v-for="asset in assets" :key="asset.code">{{ asset.name }}</th><th>总投资仓位</th></tr></thead><tbody><tr v-for="week in weeks" :key="week.week_start"><td>{{ week.week_start }}{{ week.partial ? '＊' : '' }}<small>{{ week.carried_over ? '休市沿用 ' : '估值 ' }}{{ week.date }}</small></td><td v-for="asset in assets" :key="asset.code">{{ pct(weight(week, asset.code)) }}</td><td><b>{{ pct(totalWeight(week)) }}</b></td></tr></tbody></table></div></details>
     </template>
     <p v-else class="allocation-empty">暂无最近50周持仓数据，请更新正式策略快照。</p>
@@ -19,20 +19,19 @@ import * as echarts from 'echarts/core'
 import { BarChart } from 'echarts/charts'
 import { GridComponent, TooltipComponent, MarkPointComponent, DataZoomComponent } from 'echarts/components'
 import { CanvasRenderer } from 'echarts/renderers'
+import { isDividendBandStrategy, strategyDisplayName } from '../strategyPresentation.js'
+import { allocationWeeks, allocationAssets, allocationWeight, totalAllocationWeight } from '../weeklyAllocation.js'
 
 echarts.use([BarChart, GridComponent, TooltipComponent, MarkPointComponent, DataZoomComponent, CanvasRenderer])
 const props = defineProps({ strategy: { type: Object, required: true } })
 const plot = ref(null)
-const weeks = computed(() => [...(props.strategy.weekly_allocation || props.strategy.weekly_holdings || [])].sort((a, b) => a.week_start.localeCompare(b.week_start)).slice(-50))
-const weight = (week, code) => (week.holdings || []).filter(holding => holding.code === code || holding.symbol?.slice(2) === code).reduce((sum, holding) => sum + holding.weight, 0)
-const totalWeight = week => (week.holdings || []).reduce((sum, holding) => sum + holding.weight, 0)
-const pct = value => (value * 100).toFixed(2) + '%'
-const assets = computed(() => [
-  { code: '515880', name: '通信ETF', color: '#3975ca' },
-  { code: '518880', name: '黄金ETF', color: '#c29447' },
-  ...(weeks.value.some(week => weight(week, '510300') > 0) ? [{ code: '510300', name: '沪深300（资格替代）', color: '#8395a9' }] : []),
-])
-const chartDescription = computed(() => `通信 / 黄金最近${weeks.value.length}周仓位堆叠柱状图。` + weeks.value.map(week => `${week.week_start}：${assets.value.map(asset => `${asset.name}${pct(weight(week, asset.code))}`).join('，')}，总投资仓位${pct(totalWeight(week))}`).join('；'))
+const isDividendBand = computed(() => isDividendBandStrategy(props.strategy))
+const weeks = computed(() => allocationWeeks(props.strategy))
+const weight = allocationWeight
+const totalWeight = totalAllocationWeight
+const pct = value => value == null || !Number.isFinite(Number(value)) ? '—' : (value * 100).toFixed(2) + '%'
+const assets = computed(() => allocationAssets(props.strategy, weeks.value))
+const chartDescription = computed(() => `${strategyDisplayName(props.strategy)}最近${weeks.value.length}周仓位堆叠柱状图。` + weeks.value.map(week => `${week.week_start}：${assets.value.map(asset => `${asset.name}${pct(weight(week, asset.code))}`).join('，')}，总投资仓位${pct(totalWeight(week))}`).join('；'))
 let chart, observer
 let zoom = { start: 0, end: 100 }
 function draw() {
